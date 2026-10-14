@@ -67,6 +67,7 @@ export interface ArticleItem {
   author: string;
   url?: string;
   language?: string;
+  source_category?: string;
 }
 
 export interface DigestPanel {

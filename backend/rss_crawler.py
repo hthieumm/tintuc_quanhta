@@ -5,6 +5,7 @@ language tagging, and SQLite WAL ingestion.
 """
 
 import os
+import asyncio
 import re
 import json
 import hashlib
@@ -20,9 +21,11 @@ import trafilatura
 
 try:
     from curl_cffi.requests import AsyncSession as CurlAsyncSession
+    from curl_cffi import requests as c_requests
     HAS_CURL_CFFI = True
 except ImportError:
     HAS_CURL_CFFI = False
+    c_requests = None
 
 from .database import DEFAULT_DB_PATH, generate_url_hash
 
@@ -454,8 +457,40 @@ async def resolve_real_article_url(url: str, client: Optional[httpx.AsyncClient]
             except Exception:
                 pass
 
-        # 3. Google News Wrapper -> Giải mã Base64 / batchexecute
+        # 3. Google News Wrapper -> Giải mã batchexecute / Base64
         if "news.google.com" in u_low:
+            # 3.1. Thử giải mã batchexecute (chuẩn mới Google News CBMi)
+            try:
+                resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA}, follow_redirects=True, timeout=6.0)
+                if resp.url and "news.google.com" not in str(resp.url):
+                    return str(resp.url)
+                sg_m = re.search(r'data-n-a-sg="([^"]+)"', resp.text)
+                ts_m = re.search(r'data-n-a-ts="([^"]+)"', resp.text)
+                if sg_m and ts_m:
+                    import urllib.parse
+                    art_id = urllib.parse.urlparse(url).path.split("/")[-1]
+                    if art_id:
+                        _GARTURLREQ_CTX = [
+                            ["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
+                            "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
+                        ]
+                        inner = ["garturlreq", _GARTURLREQ_CTX, art_id, int(ts_m.group(1)), sg_m.group(1)]
+                        envelope = [["Fbv4je", json.dumps(inner, separators=(",", ":")), None, "1"]]
+                        body = "f.req=" + urllib.parse.quote(json.dumps([envelope], separators=(",", ":")))
+                        b_resp = await client.post(
+                            "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                            headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+                            content=body,
+                            timeout=6.0,
+                        )
+                        if b_resp.status_code == 200:
+                            found = [u.rstrip("\\") for u in re.findall(r'"(https?://[^"]+)"', b_resp.text) if "google" not in u]
+                            if found:
+                                return found[0]
+            except Exception:
+                pass
+
+            # 3.2. Giải mã Base64 cho định dạng URL cũ
             try:
                 import base64
                 m_b64 = re.search(r'/articles/([A-Za-z0-9_-]+)', url)
@@ -469,7 +504,7 @@ async def resolve_real_article_url(url: str, client: Optional[httpx.AsyncClient]
             except Exception:
                 pass
 
-            # Fallback qua HTTP nếu Base64 chưa trích xuất được
+            # 3.3. Fallback qua regex thẻ HTML
             try:
                 resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA}, follow_redirects=True, timeout=6.0)
                 if resp.url and "news.google.com" not in str(resp.url):
@@ -698,6 +733,134 @@ def clean_jina_markdown(raw_txt: str) -> str:
 
     result = "\n\n".join(cleaned_paras).strip()
     return result if is_valid_article_prose(result) else ""
+def fetch_article_content_robust(url: str, title: Optional[str] = None) -> Optional[str]:
+    """
+    Sử dụng curl_cffi để giả lập TLS fingerprint của Chrome, 
+    giúp cào sạch sẽ bài gốc của Reuters, Bloomberg, AP mà không bị chặn bot.
+    """
+    try:
+        from curl_cffi import requests as c_requests
+        import trafilatura
+
+        # 1. Nếu là link Google News, thử giải mã sang link tòa soạn gốc
+        target_url = url
+        if "news.google.com" in url.lower():
+            try:
+                with httpx.Client(follow_redirects=True, timeout=6.0) as client:
+                    resp = client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA})
+                    if resp.url and "news.google.com" not in str(resp.url):
+                        target_url = str(resp.url)
+                    else:
+                        sg_m = re.search(r'data-n-a-sg="([^"]+)"', resp.text)
+                        ts_m = re.search(r'data-n-a-ts="([^"]+)"', resp.text)
+                        if sg_m and ts_m:
+                            import urllib.parse
+                            art_id = urllib.parse.urlparse(url).path.split("/")[-1]
+                            if art_id:
+                                _ctx = [
+                                    ["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
+                                    "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
+                                ]
+                                inner = ["garturlreq", _ctx, art_id, int(ts_m.group(1)), sg_m.group(1)]
+                                envelope = [["Fbv4je", json.dumps(inner, separators=(",", ":")), None, "1"]]
+                                body = "f.req=" + urllib.parse.quote(json.dumps([envelope], separators=(",", ":")))
+                                b_resp = client.post(
+                                    "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                                    headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+                                    content=body,
+                                    timeout=6.0,
+                                )
+                                if b_resp.status_code == 200:
+                                    found = [u.rstrip("\\") for u in re.findall(r'"(https?://[^"]+)"', b_resp.text) if "google" not in u]
+                                    if found:
+                                        target_url = found[0]
+            except Exception:
+                pass
+
+        # 2. Giả mạo trình duyệt Chrome trên Windows để qua mặt hệ thống chống cào của Reuters
+        resp = c_requests.get(
+            target_url,
+            impersonate="chrome120",
+            timeout=10,
+            headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.google.com/",
+            }
+        )
+        if resp.status_code == 200 and len(resp.text) > 1000:
+            # Ưu tiên parser chuyên sâu cho domain nếu có
+            dom_text = extract_domain_article(resp.text, target_url)
+            if dom_text and len(dom_text) > 250:
+                clean_dom = sanitize_article_prose(dom_text, min_total_len=200)
+                if clean_dom:
+                    return clean_dom
+
+            # Dùng trafilatura bóc tách văn bản sạch
+            extracted = trafilatura.extract(resp.text, include_comments=False, include_tables=False)
+            if extracted and len(extracted) > 250:
+                clean_ext = sanitize_article_prose(extracted.strip(), min_total_len=200)
+                if clean_ext:
+                    return clean_ext
+                return extracted.strip()
+
+        # 3. Kỹ thuật dự phòng nâng cao cho Reuters/Bloomberg khi bị WAF (401/403) hoặc JS Paywall:
+        # Tự động tra cứu bài gốc từ mạng phân phối tin đối tác (Syndication Wire / Mirrors)
+        query = title
+        if not query:
+            import urllib.parse
+            path = urllib.parse.urlparse(target_url).path
+            slug = path.strip("/").split("/")[-1]
+            if slug:
+                query = slug.replace("-", " ")
+
+        if query and len(query.strip()) > 10:
+            import urllib.parse
+            from bs4 import BeautifulSoup
+            clean_q = re.sub(r'[\'\"’—\-\:\(\)]', ' ', query)
+            clean_q = re.sub(r'\bReuters\b', '', clean_q, flags=re.IGNORECASE).strip()
+            words = [w for w in clean_q.split() if len(w) > 1]
+            ddg_query = " ".join(words[:10])
+            search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(ddg_query)}"
+            try:
+                ddg_resp = c_requests.get(
+                    search_url,
+                    headers={"Referer": "https://www.google.com/"},
+                    impersonate="chrome120",
+                    timeout=8,
+                )
+                if ddg_resp.status_code == 200:
+                    soup = BeautifulSoup(ddg_resp.text, "html.parser")
+                    for a_tag in soup.find_all("a", class_="result__url"):
+                        href = a_tag.get("href", "").strip()
+                        m_target = re.search(r'uddg=([^&]+)', href)
+                        mirror_url = urllib.parse.unquote(m_target.group(1)) if m_target else href
+                        if not mirror_url or "reuters.com" in mirror_url or "google.com" in mirror_url:
+                            continue
+                        try:
+                            m_resp = c_requests.get(
+                                mirror_url,
+                                headers={"Accept-Language": "en-US,en;q=0.9"},
+                                impersonate="chrome120",
+                                timeout=8,
+                            )
+                            if m_resp.status_code == 200 and len(m_resp.text) > 1000:
+                                m_ext = trafilatura.extract(m_resp.text, include_comments=False, include_tables=False)
+                                if m_ext and len(m_ext) > 300:
+                                    clean_m = sanitize_article_prose(m_ext.strip(), min_total_len=200)
+                                    return clean_m or m_ext.strip()
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug(f"curl_cffi fetch error for {url}: {e}")
+
+    return None
+
+
+async def fetch_article_content_robust_async(url: str, title: Optional[str] = None) -> Optional[str]:
+    """Phiên bản non-blocking async của fetch_article_content_robust cho FastAPI."""
+    return await asyncio.to_thread(fetch_article_content_robust, url, title)
 
 
 class SpiderNewsCrawler:
@@ -844,6 +1007,14 @@ class SpiderNewsCrawler:
             except Exception:
                 pass
 
+            # Tier 6.5: Robust TLS Impersonation & Syndication Wire (Reuters, Bloomberg, AP)
+            try:
+                robust_txt = await fetch_article_content_robust_async(url, title=title)
+                if robust_txt and len(robust_txt) > 250:
+                    return robust_txt, "tier_robust_curl_cffi"
+            except Exception as e:
+                logger.debug(f"Tier robust curl_cffi error: {e}")
+
             # Tier 7: Reverse Search Fallback (khi có tiêu đề và các tầng trên bị chặn)
             if title and len(title.strip()) > 12:
                 reverse_txt = await reverse_search_article(title)
@@ -873,12 +1044,18 @@ class SpiderNewsCrawler:
 
         # Bước 1: Lấy danh sách hash đã có trong 1 query chớp nhoáng (< 2ms)
         existing_hashes = set()
+        source_category = None
         try:
             async with aiosqlite.connect(self.db_path, timeout=30.0) as db:
                 await db.execute("PRAGMA busy_timeout = 30000;")
                 async with db.execute("SELECT url_hash FROM articles") as cur:
                     rows = await cur.fetchall()
                     existing_hashes = {r[0] for r in rows}
+                if source_id:
+                    async with db.execute("SELECT category FROM sources WHERE id = ?", (source_id,)) as cur:
+                        s_row = await cur.fetchone()
+                        if s_row:
+                            source_category = s_row[0]
         except Exception as e:
             logger.warning(f"Could not preload existing url_hashes: {e}")
 
@@ -920,7 +1097,9 @@ class SpiderNewsCrawler:
                 # Chốt kiểm duyệt System 1 (D3 Lite Rule Gate) & Phân loại chuyên mục
                 try:
                     from .app import evaluate_article_system1_gate
-                    passed, detected_cat = evaluate_article_system1_gate(title, content_clean)
+                    passed, detected_cat = evaluate_article_system1_gate(
+                        title, content_clean, source_category=source_category
+                    )
                     if not passed:
                         logger.info(f"System 1 rejected noise article: '{title}'")
                         continue
@@ -942,7 +1121,7 @@ class SpiderNewsCrawler:
                     "language": lang,
                     "author": author,
                     "published_at": published_at,
-                    "category": detected_cat or "kinh_te",
+                    "category": detected_cat or source_category or "kinh_te",
                 })
 
         # Bước 3: Mở kết nối ghi chớp nhoáng (chỉ mất ~5ms), tuyệt đối không gây lock DB

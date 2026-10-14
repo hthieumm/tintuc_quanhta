@@ -139,6 +139,8 @@ export function computeRepoEvaluation(repo?: GitHubRepoDbItem | null): TechEvalu
 export interface GitHubRepoDbItem {
   id: number;
   repo_full_name: string;
+  name?: string;
+  full_name?: string;
   repo_url: string;
   stars: number;
   today_stars: number;
@@ -150,9 +152,63 @@ export interface GitHubRepoDbItem {
   readme_content?: string;
   ai_explanation?: GitHubAIExplanation | null;
   demo_code?: string;
+  quickstart_cmd?: string;
+  integration_badge?: string;
+  integration_snippet?: string;
   tech_score: number;
   is_bookmarked: number;
   crawled_at: string;
+}
+
+export const GITHUB_CATEGORIES = [
+  { id: "all", label: "🌐 Tất Cả Repo Tinh Tuyển" },
+  { id: "mcp_skills", label: "🔌 AI Skills & MCP Server" },
+  { id: "ai_agents", label: "🤖 AI Agents & Automation" },
+  { id: "llm_rag", label: "🧠 LLM, RAG & Local AI" },
+  { id: "scraper_osint", label: "🕷️ Web Scraper & Browser MCP" },
+  { id: "quant_fintech", label: "📈 Quant & Algo Trading" },
+  { id: "trending", label: "🔥 Mới Nổi (Trending 2026)" },
+];
+
+export function getRepoAiIntegration(repo: GitHubRepoDbItem) {
+  if (repo.integration_badge && repo.integration_snippet) {
+    return {
+      badge: repo.integration_badge,
+      snippet: repo.integration_snippet
+    };
+  }
+  const full_name = repo.full_name || repo.repo_full_name || '';
+  const short_name = repo.name || (full_name.includes('/') ? full_name.split('/')[1] : full_name) || 'repo';
+  const desc = (repo.description || '').toLowerCase();
+  const topics = (repo.topics || []).map(t => t.toLowerCase());
+  const lang = (repo.primary_language || '').toLowerCase();
+
+  const is_mcp = ['mcp', 'model-context-protocol', 'mcp-server'].some(
+    k => desc.includes(k) || topics.join(' ').includes(k) || short_name.toLowerCase().includes(k)
+  );
+  const is_skill = ['skill', 'skills', 'cursorrules', 'claude-code', 'opencode', 'prompt'].some(
+    k => desc.includes(k) || topics.join(' ').includes(k) || short_name.toLowerCase().includes(k)
+  );
+
+  if (is_mcp) {
+    const cmd_runner = lang === 'python' ? 'uvx' : 'npx -y';
+    const pkg_hint = short_name;
+    const argsStr = cmd_runner.includes('npx') ? `["-y", "${pkg_hint}"]` : `["${pkg_hint}"]`;
+    return {
+      badge: '🔌 MCP SERVER READY',
+      snippet: `// Thêm vào mcpServers trong cấu hình Claude / Cursor / OpenCode:\n"${short_name}": {\n  "command": "${cmd_runner.split(' ')[0]}",\n  "args": ${argsStr}\n}`
+    };
+  } else if (is_skill) {
+    return {
+      badge: '🧠 AGENT SKILL / RULES',
+      snippet: `# Tải bộ Skill vào thư mục .agents/skills/ của dự án:\ngit clone https://github.com/${full_name}.git .agents/skills/${short_name}`
+    };
+  } else {
+    return {
+      badge: '🛠️ AI / DEV TOOLKIT',
+      snippet: `# Clone và tích hợp vào workspace:\ngit clone --depth 1 https://github.com/${full_name}.git`
+    };
+  }
 }
 
 export interface SyncStatus {
@@ -176,6 +232,12 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
   const [copiedClone, setCopiedClone] = useState<boolean>(false);
   const [stats, setStats] = useState<Record<string, number>>({
     all: 0,
+    mcp_skills: 0,
+    ai_agents: 0,
+    llm_rag: 0,
+    scraper_osint: 0,
+    quant_fintech: 0,
+    trending: 0,
     ai: 0,
     systems: 0,
     wasm: 0,
@@ -432,15 +494,11 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
     return true;
   });
 
-  const topicsList = [
-    { id: 'all', label: 'Tất Cả Danh Mục', count: stats.all || 41 },
-    { id: 'design', label: '🎨 Thiết Kế & Canva / UI', count: stats.design || 8 },
-    { id: 'skills', label: '📚 Kỹ Năng & Giáo Dục', count: stats.skills || 5 },
-    { id: 'ai', label: '🤖 AI & LLM Inference', count: stats.ai || 18 },
-    { id: 'systems', label: '⚡ Systems & Rust/C++', count: stats.systems || 12 },
-    { id: 'wasm', label: '🌐 WebAssembly & Edge', count: stats.wasm || 6 },
-    { id: 'vector', label: '🔍 Vector DB & Search', count: stats.vector || 5 }
-  ];
+  const topicsList = GITHUB_CATEGORIES.map(cat => ({
+    id: cat.id,
+    label: cat.label,
+    count: typeof stats[cat.id] === 'number' ? stats[cat.id] : (cat.id === 'all' ? (stats.all || repos.length) : 0)
+  }));
 
   return (
     <div
@@ -1178,50 +1236,131 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
                         </div>
                       )}
 
-                      {/* Hộp 4: Quickstart 1 phút */}
-                      {selectedRepo.ai_explanation.quickstart && (
-                        <div
+                      {/* 2. Hộp Quickstart (Hiển thị đầy đủ 100%, không còn bị hộp Con Nhện đè lên) */}
+                      <div
+                        style={{
+                          background: "#1E293B",
+                          color: "#F8FAFC",
+                          borderRadius: "10px",
+                          padding: "16px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                          <span style={{ fontWeight: 700, fontSize: "13px", color: "#38BDF8" }}>
+                            🚀 CÁCH CHẠY THỬ NHANH TRONG 1 PHÚT (QUICKSTART)
+                          </span>
+                          <button
+                            onClick={() => {
+                              const cmd = selectedRepo.quickstart_cmd || selectedRepo.ai_explanation?.quickstart || `git clone https://github.com/${selectedRepo.repo_full_name}.git`;
+                              navigator.clipboard.writeText(cmd);
+                              setCopiedQuickstart(true);
+                              playSfx('paper_rustle');
+                              setTimeout(() => setCopiedQuickstart(false), 2000);
+                            }}
+                            style={{
+                              backgroundColor: copiedQuickstart ? '#10B981' : '#334155',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                              fontSize: '10.5px',
+                              fontFamily: 'var(--font-mono)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {copiedQuickstart ? '✓ Đã Copy' : 'Copy lệnh'}
+                          </button>
+                        </div>
+                        <pre
                           style={{
-                            backgroundColor: '#1E293B',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            border: '1px solid #334155',
-                            flexShrink: 0
+                            margin: 0,
+                            padding: "12px",
+                            background: "#0F172A",
+                            borderRadius: "8px",
+                            fontSize: "12.5px",
+                            lineHeight: 1.5,
+                            overflowX: "auto",
+                            color: "#E2E8F0",
+                            fontFamily: "'JetBrains Mono', monospace",
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '12px' }}>🚀</span>
-                              <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-                                Cách chạy thử nhanh trong 1 phút (Quickstart)
+                          {selectedRepo.quickstart_cmd || selectedRepo.ai_explanation?.quickstart || `git clone https://github.com/${selectedRepo.full_name || selectedRepo.repo_full_name}.git`}
+                        </pre>
+                      </div>
+
+                      {/* 3. MỚI: Hộp Tích hợp AI Skill & MCP Server (Thay thế cho hộp Dấu chân nhện cũ) */}
+                      {(() => {
+                        const aiInteg = getRepoAiIntegration(selectedRepo);
+                        const badge = selectedRepo.integration_badge || aiInteg.badge;
+                        const snippet = selectedRepo.integration_snippet || aiInteg.snippet;
+                        const shortName = selectedRepo.name || (selectedRepo.repo_full_name ? selectedRepo.repo_full_name.split('/')[1] : 'repo');
+                        return (
+                          <div
+                            style={{
+                              background: "#F0FDF4",
+                              border: "1px solid #BBF7D0",
+                              borderRadius: "10px",
+                              padding: "14px 16px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                              <span style={{ fontWeight: 700, fontSize: "13px", color: "#166534" }}>
+                                🔌 TÍCH HỢP AGENT SKILL & MCP (CLAUDE / CURSOR / OPENCODE)
                               </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: "99px",
+                                    background: "#DCFCE7",
+                                    color: "#15803D",
+                                  }}
+                                >
+                                  {badge}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(snippet);
+                                    playSfx('paper_rustle');
+                                  }}
+                                  style={{
+                                    backgroundColor: '#DCFCE7',
+                                    color: '#15803D',
+                                    border: '1px solid #BBF7D0',
+                                    borderRadius: '4px',
+                                    padding: '2px 8px',
+                                    fontSize: '10px',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Copy cấu hình
+                                </button>
+                              </div>
                             </div>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(selectedRepo.ai_explanation?.quickstart || '');
-                                setCopiedQuickstart(true);
-                                playSfx('paper_rustle');
-                                setTimeout(() => setCopiedQuickstart(false), 2000);
-                              }}
+                            <pre
                               style={{
-                                backgroundColor: copiedQuickstart ? '#10B981' : '#334155',
-                                color: '#FFFFFF',
-                                border: 'none',
-                                borderRadius: '4px',
-                                padding: '2px 8px',
-                                fontSize: '10px',
-                                fontFamily: 'var(--font-mono)',
-                                cursor: 'pointer'
+                                margin: 0,
+                                padding: "10px 12px",
+                                background: "#FFFFFF",
+                                border: "1px solid #DCFCE7",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                color: "#14532D",
+                                overflowX: "auto",
+                                fontFamily: "'JetBrains Mono', monospace",
                               }}
                             >
-                              {copiedQuickstart ? '✓ Đã Copy' : 'Copy lệnh'}
-                            </button>
+                              {snippet || `# Cài đặt làm Agent Skill / MCP:\ngit clone https://github.com/${selectedRepo.repo_full_name}.git .agents/skills/${shortName}`}
+                            </pre>
                           </div>
-                          <code style={{ fontSize: '11.5px', color: '#38BDF8', fontFamily: 'var(--font-mono)', display: 'block', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
-                            {selectedRepo.ai_explanation.quickstart}
-                          </code>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   ) : (
                     /* Chưa có bản giải thích */
@@ -1266,6 +1405,138 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
                           </>
                         )}
                       </button>
+
+                      {/* Hộp Quickstart */}
+                      <div
+                        style={{
+                          width: '100%',
+                          background: "#1E293B",
+                          color: "#F8FAFC",
+                          borderRadius: "10px",
+                          padding: "16px",
+                          flexShrink: 0,
+                          textAlign: 'left',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                          <span style={{ fontWeight: 700, fontSize: "13px", color: "#38BDF8" }}>
+                            🚀 CÁCH CHẠY THỬ NHANH TRONG 1 PHÚT (QUICKSTART)
+                          </span>
+                          <button
+                            onClick={() => {
+                              const cmd = selectedRepo.quickstart_cmd || `git clone https://github.com/${selectedRepo.repo_full_name}.git`;
+                              navigator.clipboard.writeText(cmd);
+                              setCopiedQuickstart(true);
+                              playSfx('paper_rustle');
+                              setTimeout(() => setCopiedQuickstart(false), 2000);
+                            }}
+                            style={{
+                              backgroundColor: copiedQuickstart ? '#10B981' : '#334155',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                              fontSize: '10.5px',
+                              fontFamily: 'var(--font-mono)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {copiedQuickstart ? '✓ Đã Copy' : 'Copy lệnh'}
+                          </button>
+                        </div>
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: "12px",
+                            background: "#0F172A",
+                            borderRadius: "8px",
+                            fontSize: "12.5px",
+                            lineHeight: 1.5,
+                            overflowX: "auto",
+                            color: "#E2E8F0",
+                            fontFamily: "'JetBrains Mono', monospace",
+                          }}
+                        >
+                          {selectedRepo.quickstart_cmd || `git clone https://github.com/${selectedRepo.full_name || selectedRepo.repo_full_name}.git`}
+                        </pre>
+                      </div>
+
+                      {/* Hộp Tích hợp AI Skill & MCP Server */}
+                      {(() => {
+                        const aiInteg = getRepoAiIntegration(selectedRepo);
+                        const badge = selectedRepo.integration_badge || aiInteg.badge;
+                        const snippet = selectedRepo.integration_snippet || aiInteg.snippet;
+                        const shortName = selectedRepo.name || (selectedRepo.repo_full_name ? selectedRepo.repo_full_name.split('/')[1] : 'repo');
+                        return (
+                          <div
+                            style={{
+                              width: '100%',
+                              background: "#F0FDF4",
+                              border: "1px solid #BBF7D0",
+                              borderRadius: "10px",
+                              padding: "14px 16px",
+                              flexShrink: 0,
+                              textAlign: 'left',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                              <span style={{ fontWeight: 700, fontSize: "13px", color: "#166534" }}>
+                                🔌 TÍCH HỢP AGENT SKILL & MCP (CLAUDE / CURSOR / OPENCODE)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: "99px",
+                                    background: "#DCFCE7",
+                                    color: "#15803D",
+                                  }}
+                                >
+                                  {badge}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(snippet);
+                                    playSfx('paper_rustle');
+                                  }}
+                                  style={{
+                                    backgroundColor: '#DCFCE7',
+                                    color: '#15803D',
+                                    border: '1px solid #BBF7D0',
+                                    borderRadius: '4px',
+                                    padding: '2px 8px',
+                                    fontSize: '10px',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Copy cấu hình
+                                </button>
+                              </div>
+                            </div>
+                            <pre
+                              style={{
+                                margin: 0,
+                                padding: "10px 12px",
+                                background: "#FFFFFF",
+                                border: "1px solid #DCFCE7",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                color: "#14532D",
+                                overflowX: "auto",
+                                fontFamily: "'JetBrains Mono', monospace",
+                              }}
+                            >
+                              {snippet || `# Cài đặt làm Agent Skill / MCP:\ngit clone https://github.com/${selectedRepo.repo_full_name}.git .agents/skills/${shortName}`}
+                            </pre>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -1371,29 +1642,6 @@ docker run -d --name ${selectedRepo.repo_full_name.replace('/', '-')}-service \\
               )}
             </div>
 
-            {/* Khối Dấu chân nhện & Từ khóa bắn tơ */}
-            <div
-              style={{
-                background: '#FFFBEB',
-                border: '1px solid #FDE68A',
-                borderRadius: '12px',
-                padding: '14px 18px',
-                flexShrink: 0,        // Không bị co ép
-                marginTop: '0px',     // Tuyệt đối không dùng margin-top âm gây đè lên hộp Quickstart
-                position: 'relative',
-                zIndex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}
-            >
-              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#8D6E63', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>⚡ DẤU CHÂN NHỆN & TỪ KHÓA BẮN TƠ (TRIGGER TOKENS):</span>
-              </div>
-              <div style={{ fontSize: '11px', color: '#6D4C41', lineHeight: '1.5' }}>
-                Khi bài báo xuất hiện các từ khóa liên quan đến &lsquo;<strong>{selectedRepo.repo_full_name}</strong>&rsquo;, con nhện kích hoạt hiệu ứng móng vuốt Tribal và phóng tia tơ laser sang Node Công Nghệ AI.
-              </div>
-            </div>
 
             {/* Lưới 2 cột: Ứng dụng thực tế & Dành cho ai? */}
             {activeTab === 'explain' && selectedRepo?.ai_explanation && (selectedRepo.ai_explanation.practical_use_case || selectedRepo.ai_explanation.target_audience) && (

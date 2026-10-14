@@ -33,7 +33,7 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 logger = logging.getLogger("spider_app")
 
 from .database import DEFAULT_DB_PATH, init_db_async, get_db
-from .rss_crawler import SpiderNewsCrawler
+from .rss_crawler import SpiderNewsCrawler, clean_html_tags, sanitize_article_prose
 from .llm_synthesizer import (
     synthesize_single_article,
     generate_modular_executive_digest,
@@ -322,35 +322,45 @@ def extract_spider_keywords(text: str, limit: int = 10) -> List[Dict[str, Any]]:
     return found
 
 
-def evaluate_article_system1_gate(title: str, content: str) -> Tuple[bool, Optional[str]]:
+def evaluate_article_system1_gate(
+    title: str,
+    content: str,
+    source_category: Optional[str] = None,
+) -> Tuple[bool, str]:
     """
     Chốt kiểm duyệt System 1 (D3 Lite Rule Gate):
-    - Trả về (False, None) nếu bài viết là tin rác đời sống/giải trí/thể thao và không có từ khóa vĩ mô.
-    - Trả về (True, dominant_category) nếu bài viết hợp lệ, kèm chuyên mục sát nhất với nội dung bài!
+    - Chặn tin rác đời sống/thể thao/giải trí.
+    - Giữ nguyên chuyên mục gốc của nguồn báo (source_category), chỉ định tuyến lại
+      nếu TIÊU ĐỀ bài báo thuộc báo tổng hợp (quoc_te/kinh_te) chứa từ khóa chuyên biệt rõ ràng.
     """
     full_txt = f"{title or ''} {content or ''}"
     low_txt = full_txt.lower()
 
-    # Rút trích các từ khóa vĩ mô/tài chính/công nghệ xuất hiện trong bài
     matched_kws = extract_spider_keywords(full_txt, limit=15)
-
-    # Kiểm tra xem có dính từ khóa rác đời sống/thể thao/giải trí không (dùng regex word boundary)
     has_noise = any(p.search(full_txt) for p in _COMPILED_NOISE_REJECT)
 
-    # Nếu dính từ khóa rác đời sống và không có ít nhất 2 từ khóa vĩ mô cứu lại -> LOẠI NGAY!
     if has_noise and len(matched_kws) < 2:
-        return False, None
+        return False, source_category or "quoc_te"
 
-    # Tính chuyên mục chiếm ưu thế nhất dựa trên nội dung bài viết (Tiêu đề được nhân đôi trọng số)
+    # Nếu nguồn báo đã thuộc các kênh chuyên biệt (vang, crypto, chung_khoan, chinh_tri, github) -> Giữ nguyên!
+    base_cat = (source_category or "").strip()
+    if base_cat in ("vang", "crypto", "chung_khoan", "chinh_tri", "github"):
+        return True, base_cat
+
+    # Với nguồn tổng hợp (quoc_te, kinh_te), chỉ đổi chuyên mục nếu ngay trên TIÊU ĐỀ có từ khóa chuyên biệt
     title_kws = extract_spider_keywords(title or "", limit=5)
-    cat_scores: Dict[str, int] = {}
-    for kw in title_kws:
-        cat_scores[kw["category"]] = cat_scores.get(kw["category"], 0) + 3
-    for kw in matched_kws:
-        cat_scores[kw["category"]] = cat_scores.get(kw["category"], 0) + 1
+    if title_kws:
+        cat_scores: Dict[str, int] = {}
+        for kw in title_kws:
+            cat_scores[kw["category"]] = cat_scores.get(kw["category"], 0) + 1
+        best_title_cat = max(cat_scores.items(), key=lambda x: x[1])[0]
+        # Nếu báo quốc tế nhưng tiêu đề nói trực diện về Giá Vàng, Crypto, Chính trị -> cho phép phân loại sát nội dung
+        if base_cat == "quoc_te" and best_title_cat in ("vang", "crypto", "chinh_tri"):
+            return True, best_title_cat
+        if base_cat == "kinh_te" and best_title_cat in ("vang", "chung_khoan", "crypto"):
+            return True, best_title_cat
 
-    best_cat = max(cat_scores.items(), key=lambda x: x[1])[0] if cat_scores else None
-    return True, best_cat
+    return True, base_cat or "quoc_te"
 
 
 async def enrich_article_record(
@@ -895,24 +905,37 @@ async def api_search(q: str = Query(..., min_length=1, description="Từ khóa t
 async def api_get_category_stats():
     """
     Trả về tổng số bài viết theo từng chuyên mục trên toàn bộ cơ sở dữ liệu SQLite.
-    Hỗ trợ cả chuyên mục động theo nội dung (a.category) và chuyên mục nguồn (s.category).
+    Đồng bộ chuẩn xác 100% với cổng phân loại System 1.
     """
     async with aiosqlite.connect(DEFAULT_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             """
-            SELECT coalesce(a.category, s.category, 'all') as cat, count(a.id) as total
+            SELECT a.id, a.title, a.content_clean, a.summary_raw, s.category as source_category, a.category as article_category
             FROM articles a
-            LEFT JOIN sources s ON a.source_id = s.id
-            GROUP BY cat;
+            LEFT JOIN sources s ON a.source_id = s.id;
             """
         ) as cur:
             rows = await cur.fetchall()
-            stats = {row["cat"]: row["total"] for row in rows}
 
-        async with db.execute("SELECT count(*) as total FROM articles;") as cur:
-            total_row = await cur.fetchone()
-            stats["all"] = total_row["total"] if total_row else 0
+        stats: Dict[str, int] = {
+            "all": len(rows),
+            "kinh_te": 0,
+            "chung_khoan": 0,
+            "vang": 0,
+            "crypto": 0,
+            "quoc_te": 0,
+            "chinh_tri": 0,
+            "github": 0,
+        }
+        for r in rows:
+            passed, cat = evaluate_article_system1_gate(
+                r["title"] or "",
+                r["content_clean"] or r["summary_raw"] or "",
+                source_category=r["source_category"] or r["article_category"],
+            )
+            if passed and cat:
+                stats[cat] = stats.get(cat, 0) + 1
 
     return stats
 
@@ -922,38 +945,69 @@ async def api_get_category_stats():
 # ==========================================
 @app.get("/api/v1/articles")
 async def api_get_articles(
-    limit: int = 50,
-    offset: int = 0,
-    category: Optional[str] = Query(None, description="Lọc theo chuyên mục: kinh_te, chung_khoan, vang, crypto, quoc_te, chinh_tri"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    category: Optional[str] = Query(None, description="Lọc theo category chuyên mục"),
+    status: Optional[str] = Query(None, description="Lọc theo status: pending / analyzed / skipped"),
+    bookmarked_only: bool = Query(False, description="Chỉ lấy các bài đã gắn sao Tech Vault"),
     today: bool = Query(False, description="Chỉ lấy tin trong ngày (today=1)"),
 ):
-    """Lấy danh sách bài viết. Hỗ trợ lọc theo chuyên mục nội dung và ngày."""
+    """Lấy danh sách bài báo đã cào (đồng bộ 100% giữa bộ đếm chuyên mục và danh sách lọc)."""
     async with aiosqlite.connect(DEFAULT_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        query = """
-            SELECT a.*, coalesce(a.category, s.category, 'kinh_te') as category,
-                   s.name as source_name, s.category as source_category
+        sql = """
+            SELECT a.id, a.source_id, s.name AS source_name, coalesce(a.category, s.category, 'kinh_te') AS category,
+                   s.category AS source_category, a.title, a.url, a.author, a.published_at, a.summary_raw,
+                   a.content_clean, a.url_hash, a.status, a.is_bookmarked, a.crawled_at, a.language
             FROM articles a
-            LEFT JOIN sources s ON s.id = a.source_id
+            LEFT JOIN sources s ON a.source_id = s.id
+            WHERE 1=1
         """
-        conditions = []
         params: List[Any] = []
-
         if today:
-            conditions.append("date(a.crawled_at) = date('now','localtime')")
-        if category and category != "all":
-            conditions.append("coalesce(a.category, s.category) = ?")
-            params.append(category)
+            sql += " AND date(a.crawled_at) = date('now','localtime')"
+        if status:
+            sql += " AND a.status = ?"
+            params.append(status)
+        if bookmarked_only:
+            sql += " AND a.is_bookmarked = 1"
 
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
+        # Lấy tập bài rộng hơn khi có lọc category để lọc chính xác sau khi qua cổng System 1
+        fetch_limit = limit * 4 if (category and category != "all") else limit
+        sql += " ORDER BY a.is_bookmarked DESC, a.id DESC LIMIT ?"
+        params.append(fetch_limit)
+        if offset:
+            sql += " OFFSET ?"
+            params.append(offset)
 
-        query += " ORDER BY a.id DESC LIMIT ? OFFSET ?;"
-        params.extend([limit, offset])
+        async with db.execute(sql, tuple(params)) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
 
-        async with db.execute(query, tuple(params)) as cur:
-            rows = [dict(row) for row in await cur.fetchall()]
-    return rows
+        items = []
+        for r in rows:
+            item = dict(r)
+            item["title"] = clean_html_tags(item.get("title") or "")
+            item["summary_raw"] = sanitize_article_prose(item.get("summary_raw") or "")
+            item["content_clean"] = sanitize_article_prose(item.get("content_clean") or "")
+
+            passed, final_cat = evaluate_article_system1_gate(
+                item["title"],
+                item["content_clean"] or item["summary_raw"],
+                source_category=item.get("source_category") or item.get("category"),
+            )
+            if not passed:
+                continue
+            item["category"] = final_cat
+
+            # Lọc category sau khi đã gán final_cat -> Đảm bảo khớp 100% với số lượng đếm trên Sidebar!
+            if category and category != "all" and item["category"] != category:
+                continue
+
+            items.append(item)
+            if len(items) >= limit:
+                break
+
+    return items
 
 
 @app.get("/api/v1/articles/{article_id}")
@@ -1014,8 +1068,19 @@ async def api_fetch_full_article(article_id: int):
         title=title,
     )
 
-    # Nếu nội dung vẫn quá ngắn (< 250 ký tự do dính Hard Paywall / DataDome như The Economist),
-    # kích hoạt tầng Deep Scrape đặc trị: Playwright Headless + Reverse Search
+    # Nếu nội dung vẫn quá ngắn (< 250 ký tự do dính Hard Paywall / DataDome như The Economist / Reuters),
+    # kích hoạt tầng Deep Scrape đặc trị: curl_cffi Chrome TLS -> Playwright Headless -> Reverse Search
+    if not full_text or len(full_text) <= 250:
+        # 0. Thử cào sạch bài gốc bằng curl_cffi Chrome TLS Impersonation (vượt bot shield Reuters, AP, Bloomberg)
+        try:
+            from .rss_crawler import fetch_article_content_robust_async
+            cffi_text = await fetch_article_content_robust_async(row["url"], title=title)
+            if cffi_text and len(cffi_text) > 250:
+                full_text = cffi_text
+                tier = "tier_curl_cffi_robust"
+        except Exception as e:
+            logger.debug(f"Deep scrape curl_cffi error: {e}")
+
     if not full_text or len(full_text) <= 250:
         # 1. Thử Playwright Headless (Đợi Google News redirect hoàn tất sang báo gốc rồi mới cào)
         try:
@@ -1389,6 +1454,76 @@ class GitHubRepoCreateRequest(BaseModel):
     topic: Optional[str] = "ai"
 
 
+# 1. BỘ CHUYÊN MỤC GITHUB RADAR (Bổ sung chuyên mục trọng tâm: MCP Servers & Agent Skills)
+GITHUB_TOPIC_QUERIES: Dict[str, str] = {
+    "all": "topic:mcp OR topic:ai-agents OR topic:llm OR topic:quantitative-finance stars:>500 pushed:>2026-01-01",
+    "mcp_skills": (
+        "topic:mcp OR topic:model-context-protocol OR topic:mcp-server "
+        "OR topic:agent-skills OR topic:claude-skills OR \"mcp-server\" OR \"SKILL.md\" "
+        "stars:>150 pushed:>2026-01-01"
+    ),
+    "ai_agents": (
+        "topic:ai-agents OR topic:agentic-ai OR topic:autonomous-agents "
+        "OR topic: browser-use OR topic:langgraph stars:>400 pushed:>2026-01-01"
+    ),
+    "llm_rag": "topic:llm OR topic:rag OR topic:local-llm OR topic:ollama stars:>1000 pushed:>2026-01-01",
+    "quant_fintech": "topic:quantitative-finance OR topic:algorithmic-trading OR topic:trading-bot stars:>300 pushed:>2025-06-01",
+    "scraper_osint": "topic:web-scraping OR topic:osint OR topic:browser-automation OR topic:playwright stars:>400 pushed:>2026-01-01",
+    "trending": "created:>2026-04-01 (topic:mcp OR topic:ai-agents OR topic:llm) stars:>300",
+}
+
+# 2. DANH SÁCH CHẶN CÁC REPO KHÓA HỌC CŨ / AWESOME LIST THUẦN TÚY
+GITHUB_EXCLUDED_REPOS = (
+    "freecodecamp", "996.icu", "coding-interview-university", "developer-roadmap",
+    "public-apis", "free-programming-books", "system-design-primer",
+    "tech-interview-handbook", "javascript-algorithms", "thealgorithms",
+)
+
+
+def detect_repo_ai_integration(repo_item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Tự động phân loại xem Repo này là MCP Server, Agent Skill hay AI Tool
+    và sinh đoạn mã mẫu tích hợp (MCP JSON / CLI Skill) thay thế cho khối 'Dấu chân nhện' cũ.
+    """
+    full_name = (repo_item.get("full_name") or repo_item.get("repo_full_name") or "").strip()
+    short_name = (repo_item.get("name") or (full_name.split("/")[-1] if "/" in full_name else full_name) or "repo").strip()
+    desc = (repo_item.get("description") or "").lower()
+    topics = [t.lower() for t in (repo_item.get("topics") or [])]
+    lang = (repo_item.get("language") or repo_item.get("primary_language") or "").lower()
+
+    is_mcp = any(k in desc or k in " ".join(topics) or k in short_name.lower() for k in ("mcp", "model-context-protocol", "mcp-server"))
+    is_skill = any(k in desc or k in " ".join(topics) or k in short_name.lower() for k in ("skill", "skills", "cursorrules", "claude-code", "opencode", "prompt"))
+
+    if is_mcp:
+        badge = "🔌 MCP SERVER READY"
+        cmd_runner = "uvx" if lang == "python" else "npx -y"
+        pkg_hint = short_name if not full_name else full_name.split("/")[-1]
+        snippet = (
+            f'// Thêm vào mcpServers trong cấu hình Claude / Cursor / OpenCode:\n'
+            f'"{short_name}": {{\n'
+            f'  "command": "{cmd_runner.split()[0]}",\n'
+            f'  "args": {["-y", pkg_hint] if "npx" in cmd_runner else [pkg_hint]}\n'
+            f'}}'
+        )
+    elif is_skill:
+        badge = "🧠 AGENT SKILL / RULES"
+        snippet = (
+            f"# Tải bộ Skill vào thư mục .agents/skills/ của dự án:\n"
+            f"git clone https://github.com/{full_name}.git .agents/skills/{short_name}"
+        )
+    else:
+        badge = "🛠️ AI / DEV TOOLKIT"
+        snippet = (
+            f"# Clone và tích hợp vào workspace:\n"
+            f"git clone --depth 1 https://github.com/{full_name}.git"
+        )
+
+    return {
+        "integration_badge": badge,
+        "integration_snippet": snippet,
+    }
+
+
 @app.get("/api/v1/github/repos")
 async def api_get_github_repos(
     topic: Optional[str] = None,
@@ -1410,8 +1545,21 @@ async def api_get_github_repos(
             query += " ORDER BY today_stars DESC LIMIT 10;"
         else:
             if topic and topic != "all":
-                conditions.append("topics_json LIKE ?")
-                params.append(f'%"{topic}"%')
+                if topic == "mcp_skills":
+                    conditions.append("(topics_json LIKE '%mcp%' OR topics_json LIKE '%skill%' OR description LIKE '%mcp%' OR description LIKE '%skill%' OR repo_full_name LIKE '%mcp%' OR repo_full_name LIKE '%skill%')")
+                elif topic == "ai_agents":
+                    conditions.append("(topics_json LIKE '%agent%' OR description LIKE '%agent%' OR repo_full_name LIKE '%agent%' OR topics_json LIKE '%langgraph%')")
+                elif topic == "llm_rag":
+                    conditions.append("(topics_json LIKE '%llm%' OR topics_json LIKE '%rag%' OR topics_json LIKE '%ollama%' OR description LIKE '%llm%' OR description LIKE '%rag%')")
+                elif topic == "scraper_osint":
+                    conditions.append("(topics_json LIKE '%scrap%' OR topics_json LIKE '%crawl%' OR topics_json LIKE '%osint%' OR topics_json LIKE '%playwright%' OR description LIKE '%scrap%' OR description LIKE '%crawl%')")
+                elif topic == "quant_fintech":
+                    conditions.append("(topics_json LIKE '%quant%' OR topics_json LIKE '%trading%' OR topics_json LIKE '%finance%' OR description LIKE '%quant%' OR description LIKE '%trading%')")
+                elif topic == "trending":
+                    sort = "today"
+                else:
+                    conditions.append("topics_json LIKE ?")
+                    params.append(f'%"{topic}"%')
 
             if search:
                 conditions.append("(repo_full_name LIKE ? OR description LIKE ?)")
@@ -1451,6 +1599,20 @@ async def api_get_github_repos(
                 r["ai_explanation"] = None
         else:
             r["ai_explanation"] = None
+
+        full_n = r.get("repo_full_name") or ""
+        r["full_name"] = full_n
+        r["name"] = full_n.split("/")[-1] if "/" in full_n else full_n
+        integ = detect_repo_ai_integration(r)
+        r["integration_badge"] = integ["integration_badge"]
+        r["integration_snippet"] = integ["integration_snippet"]
+        if not r.get("quickstart_cmd"):
+            qs = (
+                r.get("ai_explanation", {}).get("quickstart")
+                if isinstance(r.get("ai_explanation"), dict)
+                else None
+            ) or r.get("demo_code") or f"git clone https://github.com/{full_n}.git"
+            r["quickstart_cmd"] = qs
 
     return rows
 
@@ -1619,6 +1781,20 @@ async def api_get_github_repo_detail(repo_id: int):
                     await db.commit()
         except Exception as e:
             logger.warning(f"Không thể cào README cho {r['repo_full_name']}: {e}")
+
+    full_n = r.get("repo_full_name") or ""
+    r["full_name"] = full_n
+    r["name"] = full_n.split("/")[-1] if "/" in full_n else full_n
+    integ = detect_repo_ai_integration(r)
+    r["integration_badge"] = integ["integration_badge"]
+    r["integration_snippet"] = integ["integration_snippet"]
+    if not r.get("quickstart_cmd"):
+        qs = (
+            r.get("ai_explanation", {}).get("quickstart")
+            if isinstance(r.get("ai_explanation"), dict)
+            else None
+        ) or r.get("demo_code") or f"git clone https://github.com/{full_n}.git"
+        r["quickstart_cmd"] = qs
 
     return r
 
@@ -1844,9 +2020,35 @@ async def api_get_github_stats():
         async with db.execute("SELECT topics_json FROM github_repos") as cur:
             rows = await cur.fetchall()
 
-    counts = {"all": len(rows), "ai": 0, "systems": 0, "wasm": 0, "vector": 0, "design": 0, "skills": 0}
+    counts = {
+        "all": len(rows),
+        "mcp_skills": 0,
+        "ai_agents": 0,
+        "llm_rag": 0,
+        "scraper_osint": 0,
+        "quant_fintech": 0,
+        "trending": 0,
+        "ai": 0,
+        "systems": 0,
+        "wasm": 0,
+        "vector": 0,
+        "design": 0,
+        "skills": 0,
+    }
     for r in rows:
         tj = (r["topics_json"] or "").lower()
+        if "mcp" in tj or "skill" in tj:
+            counts["mcp_skills"] += 1
+        if "agent" in tj or "langgraph" in tj:
+            counts["ai_agents"] += 1
+        if "llm" in tj or "rag" in tj or "ollama" in tj or "ai" in tj:
+            counts["llm_rag"] += 1
+        if "scrap" in tj or "crawl" in tj or "osint" in tj or "playwright" in tj:
+            counts["scraper_osint"] += 1
+        if "quant" in tj or "trading" in tj or "finance" in tj:
+            counts["quant_fintech"] += 1
+        counts["trending"] += 1
+
         if "design" in tj or "canva" in tj or "ui" in tj or "canvas" in tj:
             counts["design"] += 1
         if "skills" in tj or "education" in tj or "roadmap" in tj or "curriculum" in tj:

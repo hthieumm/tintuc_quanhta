@@ -51,10 +51,12 @@ export const Screen2BilingualReader: React.FC<Screen2BilingualReaderProps> = ({
       const res = await apiFetch(url);
       if (res.ok) {
         const rows = await res.json();
-        if (Array.isArray(rows)) {
-          const mapped: ArticleItem[] = rows.map((r: any) => {
+        const list = Array.isArray(rows) ? rows : (rows?.items || []);
+        if (Array.isArray(list)) {
+          const mapped: ArticleItem[] = list.map((r: any) => {
             const rawContent = r.content_clean || r.summary_raw || r.title || '';
             const paras = splitIntoParagraphs(rawContent);
+            const finalCat = (r.category || r.source_category || 'kinh_te') as any;
 
             return {
               id: r.id,
@@ -62,15 +64,16 @@ export const Screen2BilingualReader: React.FC<Screen2BilingualReaderProps> = ({
               titleEn: r.language === 'en' ? r.title : undefined,
               source: (r.source_name || 'RSS').toUpperCase(),
               timeAgo: r.published_at || 'Vừa xong',
-              category: (r.source_category || 'kinh_te') as any,
+              category: finalCat,
+              source_category: r.source_category || r.category || 'kinh_te',
               categoryName:
-                r.source_category === 'chung_khoan'
+                finalCat === 'chung_khoan'
                   ? 'Chứng khoán'
-                  : r.source_category === 'vang'
+                  : finalCat === 'vang'
                   ? 'Giá vàng'
-                  : r.source_category === 'quoc_te'
+                  : finalCat === 'quoc_te'
                   ? 'Quốc tế'
-                  : r.source_category === 'chinh_tri'
+                  : finalCat === 'chinh_tri'
                   ? 'Chính trị'
                   : 'Kinh tế vĩ mô',
               summary: paras[0] ? paras[0].slice(0, 220) + (paras[0].length > 220 ? '...' : '') : r.title,
@@ -316,15 +319,15 @@ export const Screen2BilingualReader: React.FC<Screen2BilingualReaderProps> = ({
   // Dynamic category tabs (Hiển thị chính xác tổng số bài theo DB và tự động cập nhật liên tục)
   const categories = [
     { id: 'all', icon: '📑', label: 'Tất cả bài đã lọc', count: categoryStats['all'] ?? articles.length },
-    { id: 'kinh_te', icon: '🏛️', label: 'Kinh tế vĩ mô', count: categoryStats['kinh_te'] ?? articles.filter(a => a.category === 'kinh_te').length },
-    { id: 'chung_khoan', icon: '📈', label: 'Chứng khoán VN', count: categoryStats['chung_khoan'] ?? articles.filter(a => a.category === 'chung_khoan').length },
-    { id: 'vang', icon: '🥇', label: 'Vàng & Ngoại tệ', count: categoryStats['vang'] ?? articles.filter(a => a.category === 'vang').length },
-    { id: 'quoc_te', icon: '🌍', label: 'Quốc tế', count: categoryStats['quoc_te'] ?? articles.filter(a => a.category === 'quoc_te').length },
-    { id: 'chinh_tri', icon: '⚖️', label: 'Chính trị', count: categoryStats['chinh_tri'] ?? articles.filter(a => a.category === 'chinh_tri').length }
+    { id: 'kinh_te', icon: '🏛️', label: 'Kinh tế vĩ mô', count: categoryStats['kinh_te'] ?? articles.filter(a => a.category === 'kinh_te' || a.source_category === 'kinh_te').length },
+    { id: 'chung_khoan', icon: '📈', label: 'Chứng khoán VN', count: categoryStats['chung_khoan'] ?? articles.filter(a => a.category === 'chung_khoan' || a.source_category === 'chung_khoan').length },
+    { id: 'vang', icon: '🥇', label: 'Vàng & Ngoại tệ', count: categoryStats['vang'] ?? articles.filter(a => a.category === 'vang' || a.source_category === 'vang').length },
+    { id: 'quoc_te', icon: '🌍', label: 'Quốc tế', count: categoryStats['quoc_te'] ?? articles.filter(a => a.category === 'quoc_te' || a.source_category === 'quoc_te').length },
+    { id: 'chinh_tri', icon: '⚖️', label: 'Chính trị', count: categoryStats['chinh_tri'] ?? articles.filter(a => a.category === 'chinh_tri' || a.source_category === 'chinh_tri').length }
   ];
 
   const filteredArticles = articles.filter(art => {
-    const matchesCat = selectedCat === 'all' || art.category === selectedCat;
+    const matchesCat = selectedCat === 'all' || art.category === selectedCat || art.source_category === selectedCat;
     const matchesQuery =
       searchQuery.trim() === '' ||
       art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -424,7 +427,10 @@ export const Screen2BilingualReader: React.FC<Screen2BilingualReaderProps> = ({
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '11px',
-                      color: isActive ? '#F8AFA6' : '#5F7D58'
+                      color: isActive ? '#F8AFA6' : '#5F7D58',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      marginLeft: '10px'
                     }}
                   >
                     {cat.count} bài

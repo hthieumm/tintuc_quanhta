@@ -74,11 +74,12 @@ export const Screen1SpiderArena: React.FC<Screen1SpiderArenaProps> = ({
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) {
-          setRealArticles(data);
+        const list = Array.isArray(data) ? data : (data?.items || []);
+        if (Array.isArray(list)) {
+          setRealArticles(list);
           setSelectedArticle((prev: any) => {
-            if (prev && data.some((a: any) => a.id === prev.id)) return prev;
-            return data[0] || null;
+            if (prev && list.some((a: any) => a.id === prev.id)) return prev;
+            return list[0] || null;
           });
         }
       }
@@ -300,11 +301,11 @@ export const Screen1SpiderArena: React.FC<Screen1SpiderArenaProps> = ({
 
   const feeds = [
     { id: 'all', icon: '🌐', name: 'Tất Cả Nguồn Tin', count: `${categoryStats['all'] ?? realArticles.length} bài` },
-    { id: 'quoc_te', icon: '🌍', name: 'Quốc Tế (BBC, Reuters, AP...)', count: `${categoryStats['quoc_te'] ?? realArticles.filter(a => a.source_category === 'quoc_te').length} bài` },
-    { id: 'kinh_te', icon: '🏛️', name: 'Vĩ Mô & Tài Chính (FT, WSJ...)', count: `${categoryStats['kinh_te'] ?? realArticles.filter(a => a.source_category === 'kinh_te').length} bài` },
-    { id: 'chung_khoan', icon: '📈', name: 'Chứng Khoán & Cổ Phiếu', count: `${categoryStats['chung_khoan'] ?? realArticles.filter(a => a.source_category === 'chung_khoan').length} bài` },
-    { id: 'crypto', icon: '🪙', name: 'Crypto & Web3', count: `${categoryStats['crypto'] ?? realArticles.filter(a => a.source_category === 'crypto').length} bài` },
-    { id: 'chinh_tri', icon: '⚖️', name: 'Chính Trị & Ngoại Giao', count: `${categoryStats['chinh_tri'] ?? realArticles.filter(a => a.source_category === 'chinh_tri').length} bài` }
+    { id: 'quoc_te', icon: '🌍', name: 'Quốc Tế (BBC, Reuters, AP...)', count: `${categoryStats['quoc_te'] ?? realArticles.filter(a => a.category === 'quoc_te' || a.source_category === 'quoc_te').length} bài` },
+    { id: 'kinh_te', icon: '🏛️', name: 'Vĩ Mô & Tài Chính (FT, WSJ...)', count: `${categoryStats['kinh_te'] ?? realArticles.filter(a => a.category === 'kinh_te' || a.source_category === 'kinh_te').length} bài` },
+    { id: 'chung_khoan', icon: '📈', name: 'Chứng Khoán & Cổ Phiếu', count: `${categoryStats['chung_khoan'] ?? realArticles.filter(a => a.category === 'chung_khoan' || a.source_category === 'chung_khoan').length} bài` },
+    { id: 'crypto', icon: '🪙', name: 'Crypto & Web3', count: `${categoryStats['crypto'] ?? realArticles.filter(a => a.category === 'crypto' || a.source_category === 'crypto').length} bài` },
+    { id: 'chinh_tri', icon: '⚖️', name: 'Chính Trị & Ngoại Giao', count: `${categoryStats['chinh_tri'] ?? realArticles.filter(a => a.category === 'chinh_tri' || a.source_category === 'chinh_tri').length} bài` }
   ];
 
   const handleMarkClick = (e: React.MouseEvent<HTMLElement>, index: number, word: string, category: string) => {
@@ -545,7 +546,10 @@ export const Screen1SpiderArena: React.FC<Screen1SpiderArenaProps> = ({
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '11px',
-                      color: isActive ? '#F8AFA6' : '#5F7D58'
+                      color: isActive ? '#F8AFA6' : '#5F7D58',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      marginLeft: '10px'
                     }}
                   >
                     {feed.count}
@@ -602,7 +606,7 @@ export const Screen1SpiderArena: React.FC<Screen1SpiderArenaProps> = ({
               {(() => {
                 const filtered = activeFeed === 'all'
                   ? realArticles
-                  : realArticles.filter(a => a.source_category === activeFeed);
+                  : realArticles.filter(a => a.category === activeFeed || a.source_category === activeFeed);
                 if (filtered.length === 0) {
                   return (
                     <div style={{ fontSize: '11px', color: '#78716c', padding: '12px 0', textAlign: 'center' }}>
