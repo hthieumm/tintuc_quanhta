@@ -44,11 +44,12 @@ SOCIAL_REFERER_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
 }
 
-# Regex phát hiện ngôn ngữ tiếng Việt (chứa ký tự có dấu đặc trưng)
-VIETNAMESE_PATTERN = re.compile(
-    r"[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]",
+# Ký tự đặc trưng thuần Việt (hỏi, ngã, nặng, nón, râu, đ - không trùng với tiếng Pháp hay Tây Ban Nha)
+VIETNAMESE_UNIQUE_CHARS = re.compile(
+    r"[ăâđêôơưảãạẳẵặẩẫậẻẽẹểễệỉĩịỏõọổỗộởỡợủũụửữựỳỷỹỵ]",
     re.IGNORECASE,
 )
+VIETNAMESE_STOPWORDS = {"và", "của", "các", "trong", "được", "người", "không", "có", "này", "đã", "cho", "với", "về", "khi", "những", "theo", "tại", "một", "từ"}
 CHINESE_PATTERN = re.compile(r"[\u4e00-\u9fff]")
 JAPANESE_PATTERN = re.compile(r"[\u3040-\u309f\u30a0-\u30ff]")
 
@@ -57,10 +58,17 @@ def detect_language(text: str) -> str:
     """
     Phát hiện ngôn ngữ của bài viết dựa trên đặc trưng văn bản:
     'vi' (Tiếng Việt), 'zh' (Tiếng Trung), 'ja' (Tiếng Nhật), hoặc 'en' (Mặc định).
+    Loại bỏ triệt để lỗi nhận diện nhầm do từ mượn tiếng Pháp/Tây Ban Nha (như lycées, café, résumé).
     """
     if not text:
         return "en"
-    if VIETNAMESE_PATTERN.search(text):
+    
+    t_lower = text.lower()
+    words = set(re.findall(r'\b\w+\b', t_lower))
+    vn_stopwords_count = len(words.intersection(VIETNAMESE_STOPWORDS))
+    vn_chars_count = len(VIETNAMESE_UNIQUE_CHARS.findall(t_lower))
+
+    if vn_stopwords_count >= 2 or vn_chars_count >= 5:
         return "vi"
     if JAPANESE_PATTERN.search(text):
         return "ja"
@@ -424,9 +432,18 @@ UI_JUNK_LINE_PATTERNS = (
     "terms of service", "bloomberg the company", "terminal demo", "us edition",
     "work & life", "market data", "back forward", "share this", "follow us",
     "most popular", "related stories", "more on this story", "photograph:",
+    "please include as much detail as possible",
+    "tell us using the form below",
+    "you can share your response using this form",
+    "your responses are secure and encrypted",
+    "a journalist will contact you",
+    "guardian community team",
+    "share your story",
+    "share your thoughts",
+    "guardian callout",
 )
 
-# Danh sách tiêu đề bài rác (Quảng cáo Newsletter, tuyển dụng, chùm ảnh không chữ) cần bỏ qua khi cào RSS
+# Danh sách tiêu đề bài rác (Quảng cáo Newsletter, tuyển dụng, chùm ảnh không chữ, khảo sát) cần bỏ qua khi cào RSS
 NON_ARTICLE_TITLE_PATTERNS = (
     "sign up for the ",
     "newsletter:",
@@ -438,6 +455,12 @@ NON_ARTICLE_TITLE_PATTERNS = (
     "best photos of",
     "quiz:",
     "crossword",
+    "tell us:",
+    "send us your questions",
+    "share your experience",
+    "share your story",
+    "tell us about",
+    "callout:",
 )
 
 
@@ -446,6 +469,7 @@ def is_junk_rss_entry(title: str, summary: str, url: str) -> bool:
     Chặn ngay từ vòng gửi xe các bài RSS không phải tin tức:
     - Quảng cáo đăng ký Newsletter của The Guardian / NYT
     - Chùm ảnh (Photo Gallery) không có nội dung văn bản
+    - Khảo sát cộng đồng (Community callouts / survey forms)
     """
     t_low = (title or "").lower().strip()
     s_low = (summary or "").lower().strip()
@@ -455,7 +479,9 @@ def is_junk_rss_entry(title: str, summary: str, url: str) -> bool:
         return True
     if "privacy notice: newsletters may contain" in s_low or "privacy notice: newsletters" in s_low:
         return True
-    if "/gallery/" in u_low or "/in-pictures/" in u_low or "/ng-interactive/" in u_low:
+    if "guardian community team" in s_low or "share your response" in s_low or "tell us using the form" in s_low:
+        return True
+    if "/gallery/" in u_low or "/in-pictures/" in u_low or "/ng-interactive/" in u_low or "/community/" in u_low:
         return True
     return False
 
@@ -464,13 +490,15 @@ def sanitize_article_prose(text: str, min_total_len: int = 200) -> str:
     """
     Bộ lọc cấp độ từng đoạn văn (Paragraph-level Sanitizer):
     Loại bỏ 100% các dòng menu ngắn (News, Opinion, Sport, UK edition, Previous image...)
-    Chỉ giữ lại những đoạn văn xuôi thực thụ (dài >= 55 ký tự và có cấu trúc câu).
+    Chỉ giữ lại những đoạn văn xuôi thực thụ (dài >= 50 ký tự và có cấu trúc câu).
+    Khử trùng lặp toàn cục (Global Deduplication) nhằm loại bỏ triệt để các câu form lặp lại nhiều lần.
     """
     if not text:
         return ""
 
     raw_lines = text.splitlines()
     valid_paragraphs: List[str] = []
+    seen_hashes: set = set()
 
     for line in raw_lines:
         clean = clean_html_tags(line).strip()
@@ -483,21 +511,26 @@ def sanitize_article_prose(text: str, min_total_len: int = 200) -> str:
 
         c_low = clean.lower()
 
-        # 2. Loại bỏ dòng khớp với từ khóa giao diện / nút bấm
+        # 2. Loại bỏ dòng khớp với từ khóa giao diện / nút bấm / hướng dẫn form
         if any(junk in c_low for junk in UI_JUNK_LINE_PATTERNS):
             continue
 
         # 3. Loại bỏ các dòng cụt ngủn (menu, nhãn chuyên mục như "News", "Sport", "Int", "Sign in")
-        # Một đoạn văn báo chí thực sự phải có ít nhất 9 từ và dài >= 50 ký tự, có dấu câu
+        # Một đoạn văn báo chí thực sự phải có ít nhất 8 từ và dài >= 45 ký tự, có dấu câu
         word_count = len(clean.split())
-        if len(clean) < 50 or word_count < 8:
+        if len(clean) < 45 or word_count < 7:
             continue
 
         if not any(punct in clean for punct in (".", "!", "?", "。", "”", '"', "’", "…")):
             continue
 
-        if not valid_paragraphs or clean != valid_paragraphs[-1]:
-            valid_paragraphs.append(clean)
+        # 4. Khử trùng lặp toàn cục (Global Deduplication)
+        norm_key = re.sub(r'\s+', ' ', c_low)
+        if norm_key in seen_hashes:
+            continue
+        seen_hashes.add(norm_key)
+
+        valid_paragraphs.append(clean)
 
     result = "\n\n".join(valid_paragraphs).strip()
     if len(result) >= min_total_len and len(valid_paragraphs) >= 2:

@@ -89,9 +89,12 @@ export const Screen2BilingualReader: React.FC<Screen2BilingualReaderProps> = ({
           });
 
           setArticles(mapped);
-          if (mapped[0]) {
-            setSelectedArticleId(mapped[0].id);
-          }
+          setSelectedArticleId(prevId => {
+            if (prevId && mapped.some(a => a.id === prevId)) {
+              return prevId;
+            }
+            return mapped[0]?.id || 0;
+          });
         }
       }
     } catch (e) {
