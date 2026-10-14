@@ -782,10 +782,15 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
       <section
         style={{
           flex: 1,
+          height: '100%',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
-          overflowY: 'auto'
+          justifyContent: 'flex-start', // Chống cắt mất chữ ở mép trên cùng
+          gap: '16px',
+          padding: '20px 24px 32px 24px',
+          boxSizing: 'border-box'
         }}
       >
         {/* Banner Quét Cập Nhật Hàng Ngày */}
@@ -1069,15 +1074,18 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
             {/* Content Pane */}
             <div
               style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #DCD5C5',
+                background: '#FFFFFF',
+                border: '1px solid #E5E0D5',
+                borderRadius: '14px',
                 padding: '20px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px',
-                boxShadow: '0 2px 8px rgba(45, 74, 43, 0.04)',
-                minHeight: '260px'
+                gap: '16px',
+                height: 'auto',       // Bắt buộc để auto, không giới hạn max-height
+                minHeight: 'min-content',
+                flexShrink: 0,        // Cấm Flexbox tự ý ép lùn card này!
+                overflow: 'visible',  // Không cắt cụt hộp Quickstart màu xanh đen bên trong
+                boxShadow: '0 2px 8px rgba(45, 74, 43, 0.04)'
               }}
             >
               {activeTab === 'explain' && (
@@ -1172,7 +1180,15 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
 
                       {/* Hộp 4: Quickstart 1 phút */}
                       {selectedRepo.ai_explanation.quickstart && (
-                        <div style={{ backgroundColor: '#1E293B', borderRadius: '8px', padding: '12px', border: '1px solid #334155' }}>
+                        <div
+                          style={{
+                            backgroundColor: '#1E293B',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            border: '1px solid #334155',
+                            flexShrink: 0
+                          }}
+                        >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span style={{ fontSize: '12px' }}>🚀</span>
@@ -1201,36 +1217,11 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
                               {copiedQuickstart ? '✓ Đã Copy' : 'Copy lệnh'}
                             </button>
                           </div>
-                          <code style={{ fontSize: '11.5px', color: '#38BDF8', fontFamily: 'var(--font-mono)', display: 'block', wordBreak: 'break-all' }}>
+                          <code style={{ fontSize: '11.5px', color: '#38BDF8', fontFamily: 'var(--font-mono)', display: 'block', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
                             {selectedRepo.ai_explanation.quickstart}
                           </code>
                         </div>
                       )}
-
-                      {/* Hộp 5 & 6: Ứng dụng thực tế & Đối tượng */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                        {selectedRepo.ai_explanation.practical_use_case && (
-                          <div style={{ backgroundColor: '#F0F7FF', border: '1px solid #BEE3F8', borderRadius: '8px', padding: '10px' }}>
-                            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#2B6CB0', marginBottom: '4px', textTransform: 'uppercase' }}>
-                              🏢 Ứng Dụng Thực Tế
-                            </div>
-                            <div style={{ fontSize: '11.5px', color: '#2D3748', lineHeight: '1.5' }}>
-                              {selectedRepo.ai_explanation.practical_use_case}
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedRepo.ai_explanation.target_audience && (
-                          <div style={{ backgroundColor: '#FAF5FF', border: '1px solid #E9D8FD', borderRadius: '8px', padding: '10px' }}>
-                            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#6B46C1', marginBottom: '4px', textTransform: 'uppercase' }}>
-                              👥 Dành Cho Ai?
-                            </div>
-                            <div style={{ fontSize: '11.5px', color: '#2D3748', lineHeight: '1.5' }}>
-                              {selectedRepo.ai_explanation.target_audience}
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   ) : (
                     /* Chưa có bản giải thích */
@@ -1380,17 +1371,20 @@ docker run -d --name ${selectedRepo.repo_full_name.replace('/', '-')}-service \\
               )}
             </div>
 
-            {/* Bottom Trigger Tokens Section */}
+            {/* Khối Dấu chân nhện & Từ khóa bắn tơ */}
             <div
               style={{
-                backgroundColor: '#FFF8E1',
-                borderRadius: '10px',
-                border: '1px solid #FFE082',
-                padding: '12px 16px',
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                borderRadius: '12px',
+                padding: '14px 18px',
+                flexShrink: 0,        // Không bị co ép
+                marginTop: '0px',     // Tuyệt đối không dùng margin-top âm gây đè lên hộp Quickstart
+                position: 'relative',
+                zIndex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
-                flexShrink: 0
+                gap: '4px'
               }}
             >
               <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#8D6E63', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1400,6 +1394,43 @@ docker run -d --name ${selectedRepo.repo_full_name.replace('/', '-')}-service \\
                 Khi bài báo xuất hiện các từ khóa liên quan đến &lsquo;<strong>{selectedRepo.repo_full_name}</strong>&rsquo;, con nhện kích hoạt hiệu ứng móng vuốt Tribal và phóng tia tơ laser sang Node Công Nghệ AI.
               </div>
             </div>
+
+            {/* Lưới 2 cột: Ứng dụng thực tế & Dành cho ai? */}
+            {activeTab === 'explain' && selectedRepo?.ai_explanation && (selectedRepo.ai_explanation.practical_use_case || selectedRepo.ai_explanation.target_audience) && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '16px',
+                  flexShrink: 0,        // Giữ nguyên chiều cao tự nhiên
+                  marginTop: '0px'
+                }}
+              >
+                {selectedRepo.ai_explanation.practical_use_case && (
+                  <div style={{ backgroundColor: '#F0F7FF', border: '1px solid #BEE3F8', borderRadius: '12px', padding: '14px 16px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#2B6CB0', marginBottom: '6px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>🏢</span>
+                      <span>ỨNG DỤNG THỰC TẾ</span>
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#2D3748', lineHeight: '1.6' }}>
+                      {selectedRepo.ai_explanation.practical_use_case}
+                    </div>
+                  </div>
+                )}
+
+                {selectedRepo.ai_explanation.target_audience && (
+                  <div style={{ backgroundColor: '#FAF5FF', border: '1px solid #E9D8FD', borderRadius: '12px', padding: '14px 16px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#6B46C1', marginBottom: '6px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>👥</span>
+                      <span>DÀNH CHO AI?</span>
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#2D3748', lineHeight: '1.6' }}>
+                      {selectedRepo.ai_explanation.target_audience}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <div style={{ padding: '40px', textAlign: 'center', color: '#8A9A86' }}>

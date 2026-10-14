@@ -616,6 +616,7 @@ export const Screen1SpiderArena: React.FC<Screen1SpiderArenaProps> = ({
                     <div
                       key={art.id || idx}
                       onClick={() => {
+                        setIsAutoScanning(false);
                         setSelectedArticle(art);
                         playSfx('paper_rustle');
                       }}

@@ -1017,7 +1017,7 @@ async def api_fetch_full_article(article_id: int):
     # Nếu nội dung vẫn quá ngắn (< 250 ký tự do dính Hard Paywall / DataDome như The Economist),
     # kích hoạt tầng Deep Scrape đặc trị: Playwright Headless + Reverse Search
     if not full_text or len(full_text) <= 250:
-        # 1. Thử Playwright Headless với Social Referer (Đã bọc bộ lọc sanitize_article_prose)
+        # 1. Thử Playwright Headless (Đợi Google News redirect hoàn tất sang báo gốc rồi mới cào)
         try:
             from .rss_crawler import sanitize_article_prose
             from playwright.async_api import async_playwright
@@ -1025,22 +1025,50 @@ async def api_fetch_full_article(article_id: int):
                 browser = await p.chromium.launch(headless=True)
                 context = await browser.new_context(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                    extra_http_headers={"Referer": "https://t.co/", "X-Forwarded-For": "66.249.66.1"},
+                    extra_http_headers={"Referer": "https://www.google.com/"},
                 )
                 page = await context.new_page()
-                await page.goto(row["url"], wait_until="domcontentloaded", timeout=5000)
-                p_text = await page.evaluate("""() => {
-                    // Xóa toàn bộ header, nav, footer, aside trước khi lấy chữ
-                    document.querySelectorAll('header, nav, footer, aside, [role="navigation"], [role="banner"], figure, figcaption').forEach(el => el.remove());
-                    const paras = Array.from(document.querySelectorAll('article p, [data-gu-name="body"] p, main p'))
-                        .map(p => p.innerText.trim())
-                        .filter(t => t.length >= 50 && (t.includes('.') || t.includes('?') || t.includes('!')));
-                    return paras.join('\\n\\n');
-                }""")
-                clean_p_text = sanitize_article_prose(p_text, min_total_len=200)
-                if clean_p_text:
-                    full_text = clean_p_text
-                    tier = "tier_playwright_deep"
+                await page.goto(row["url"], wait_until="domcontentloaded", timeout=12000)
+
+                # NẾU LÀ LINK GOOGLE NEWS: Đợi tối đa 6 giây cho đến khi URL nhảy sang trang báo gốc thật sự!
+                if "news.google.com" in page.url:
+                    try:
+                        await page.wait_for_url(lambda u: "news.google.com" not in u, timeout=6000)
+                        await page.wait_for_load_state("domcontentloaded", timeout=5000)
+                    except Exception:
+                        await page.wait_for_timeout(2500)
+
+                # Lấy HTML sau khi đã sang trang báo gốc và dùng Trafilatura + <p> bóc toàn văn
+                real_html = await page.content()
+                import trafilatura
+                extracted = trafilatura.extract(real_html, include_comments=False, include_tables=False)
+                clean_extracted = sanitize_article_prose(extracted, min_total_len=200) if extracted else ""
+                if clean_extracted and len(clean_extracted) > 250:
+                    full_text = clean_extracted
+                    tier = "tier_playwright_original"
+                else:
+                    p_text = await page.evaluate("""() => {
+                        document.querySelectorAll('header, nav, footer, aside, form, figure').forEach(el => el.remove());
+                        const paras = Array.from(document.querySelectorAll('article p, main p, [class*="article"] p, [class*="content"] p'))
+                            .map(p => p.innerText.trim())
+                            .filter(t => t.length > 45 && !t.toLowerCase().includes("cookie") && !t.toLowerCase().includes("subscribe"));
+                        return paras.join('\\n\\n');
+                    }""")
+                    clean_p = sanitize_article_prose(p_text, min_total_len=200) if p_text else ""
+                    if clean_p and len(clean_p) > 250:
+                        full_text = clean_p
+                        tier = "tier_playwright_deep"
+
+                # Cập nhật lại URL thật vào database nếu trước đó là link trung gian Google News
+                final_url = page.url
+                if final_url and "news.google.com" not in final_url and final_url != row["url"]:
+                    try:
+                        async with aiosqlite.connect(DEFAULT_DB_PATH) as db:
+                            await db.execute("UPDATE articles SET url = ? WHERE id = ?", (final_url, article_id))
+                            await db.commit()
+                    except Exception:
+                        pass
+
                 await browser.close()
         except Exception as e:
             logger.debug(f"Deep scrape Playwright error: {e}")
