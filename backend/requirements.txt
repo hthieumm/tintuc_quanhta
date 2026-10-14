@@ -12,3 +12,4 @@ pytest>=8.1.0
 pytest-asyncio>=0.23.5
 deep-translator>=1.11.4
 curl_cffi>=0.7.0
+duckduckgo-search>=6.0.0

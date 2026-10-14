@@ -158,6 +158,16 @@ def extract_next_data_article(html_text: str) -> Optional[str]:
 
                 def _recurse(obj: Any):
                     if isinstance(obj, dict):
+                        # WSJ / Substack / Next.js: Đoạn văn chia thành mảng các text/link fragment
+                        # Bắt buộc ghép toàn bộ các mảnh lại thành câu hoàn chỉnh trước khi đo độ dài
+                        if "content" in obj and isinstance(obj["content"], list):
+                            if any(isinstance(x, dict) and "text" in x for x in obj["content"]):
+                                full_p = "".join(str(x.get("text") or "") for x in obj["content"] if isinstance(x, dict))
+                                c = clean_html_tags(full_p).strip()
+                                if len(c) > 40 and not any(skip in c.lower() for skip in ["subscribe", "newsletter", "sign in", "all rights reserved"]):
+                                    collected_paras.append(c)
+                                return
+
                         # Các key thường chứa đoạn văn bài báo trong Next.js CMS
                         for k in ["articleBody", "body", "paragraphs", "content", "story", "text", "lead", "blocks"]:
                             if k in obj:
@@ -282,6 +292,59 @@ def extract_html_paragraphs(html_text: str, min_total_len: int = 250) -> Optiona
     return None
 
 
+def clean_and_extract_paragraphs(html_content: str) -> str:
+    """
+    Trích xuất toàn văn các đoạn văn <p> sạch sẽ từ HTML:
+    - Bóc tách và giữ 100% nội dung chữ bên trong các thẻ liên kết <a> bằng phương thức unwrap().
+    - Loại bỏ triệt để các thẻ rác hệ thống (script, style, nav, footer, aside, form, figure).
+    - Chuẩn hóa khoảng trắng và loại bỏ các thông báo paywall / subscription ngắn.
+    """
+    if not html_content:
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # 1. Chỉ xóa các thẻ rác thực sự, TUYỆT ĐỐI KHÔNG xóa thẻ <a>, <span>, <em>, <strong>
+        for junk in soup(["script", "style", "nav", "footer", "aside", "noscript", "iframe", "form", "figure", "figcaption", "button"]):
+            junk.decompose()
+
+        # 2. Giữ lại chữ bên trong thẻ <a> và thẻ inline bằng cách gỡ bỏ vỏ thẻ (unwrap)
+        for inline_tag in soup.find_all(["a", "span", "em", "strong", "b", "i", "mark"]):
+            inline_tag.unwrap()
+
+        # 3. Trích xuất các đoạn văn <p> với khoảng trắng chuẩn xác
+        paragraphs = []
+        seen_norm = set()
+        for p in soup.find_all("p"):
+            text = p.get_text(" ", strip=True)
+            text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+            text = clean_html_tags(text).strip()
+            low = text.lower()
+            if len(text) > 40 and not any(skip in low for skip in [
+                "subscription to keep reading",
+                "distribution and use of this material are governed",
+                "dow jones reprints",
+                "copyright ©",
+                "all rights reserved",
+                "to continue reading",
+                "sign in to continue",
+                "djreprints.com",
+                "subscriber agreement",
+                "please enable js",
+            ]):
+                norm = text[:60].lower()
+                if norm not in seen_norm:
+                    seen_norm.add(norm)
+                    paragraphs.append(text)
+
+        result = "\n\n".join(paragraphs).strip()
+        return sanitize_article_prose(result, min_total_len=200) or result
+    except Exception as e:
+        logger.debug(f"clean_and_extract_paragraphs error: {e}")
+        return ""
+
+
 def extract_domain_article(html_text: str, url: str) -> Optional[str]:
     """
     Trích xuất chuyên sâu theo từng tờ báo lớn (VN & Quốc tế).
@@ -388,19 +451,36 @@ def extract_domain_article(html_text: str, url: str) -> Optional[str]:
         elif "reuters.com" in url:
             body = soup.find("div", attrs={"data-testid": "ArticleBody"}) or soup.find("article")
 
+        # 12. The Wall Street Journal (WSJ)
+        elif "wsj.com" in url:
+            body = (
+                soup.find("section", class_="article-body")
+                or soup.find("div", class_="article-content")
+                or soup.find("div", attrs={"data-module-name": "article-body"})
+                or soup.find("article")
+            )
+
         if body:
+            # Gỡ bỏ vỏ thẻ nội tuyến (unwrap) để không làm rơi rụng chữ nằm trong các thẻ liên kết <a>
+            for inline_tag in body.find_all(["a", "span", "em", "strong", "b", "i", "mark"]):
+                inline_tag.unwrap()
+
             seen_p = set()
             clean_paras = []
             for p in body.find_all("p"):
-                txt = clean_html_tags(p.get_text())
+                txt = p.get_text(" ", strip=True)
+                txt = re.sub(r'\s+([.,!?;:])', r'\1', txt)
+                txt = clean_html_tags(txt).strip()
                 if len(txt) < 35:
                     continue
                 low = txt.lower()
-                # Lọc bỏ các câu rác cuối bài của AP, Guardian, Reuters
+                # Lọc bỏ các câu rác cuối bài của AP, Guardian, Reuters, WSJ
                 if any(k in low for k in (
                     "please include as much detail", "please tell us using the form",
                     "follow ap’s coverage", "contributed to this report",
-                    "sign up for our newsletter", "reporting by ", "editing by "
+                    "sign up for our newsletter", "reporting by ", "editing by ",
+                    "subscription to keep reading", "dow jones reprints",
+                    "subscriber agreement", "copyright ©",
                 )):
                     continue
                 if low not in seen_p:
@@ -733,129 +813,209 @@ def clean_jina_markdown(raw_txt: str) -> str:
 
     result = "\n\n".join(cleaned_paras).strip()
     return result if is_valid_article_prose(result) else ""
-def fetch_article_content_robust(url: str, title: Optional[str] = None) -> Optional[str]:
+PAYWALL_DOMAINS = [
+    "wsj.com",
+    "bloomberg.com",
+    "ft.com",
+    "nytimes.com",
+    "economist.com",
+    "theinformation.com",
+    "barrons.com",
+]
+
+
+def fetch_full_article_with_bypass(url: str, title: str = "", rss_summary: str = "") -> str:
     """
-    Sử dụng curl_cffi để giả lập TLS fingerprint của Chrome, 
-    giúp cào sạch sẽ bài gốc của Reuters, Bloomberg, AP mà không bị chặn bot.
+    Pipeline 3 bước lấy full bài báo, tự động vượt Paywall khi bài bị cắt cụt.
+    Tầng 1: Thử tải trực tiếp với Header / Referer Google + unwrap thẻ link.
+    Tầng 2: Tìm bản đăng lại hợp pháp trên MSN / Yahoo Finance / Mirror theo Tiêu đề.
+    Tầng 3: Kéo bản chụp từ Archive.ph / Wayback Machine.
+    Fallback cuối: Ghép Summary và Content thông minh để tránh lặp câu.
     """
-    try:
-        from curl_cffi import requests as c_requests
-        import trafilatura
+    if not url or not url.startswith("http"):
+        return clean_html_tags(rss_summary).strip()
 
-        # 1. Nếu là link Google News, thử giải mã sang link tòa soạn gốc
-        target_url = url
-        if "news.google.com" in url.lower():
-            try:
-                with httpx.Client(follow_redirects=True, timeout=6.0) as client:
-                    resp = client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA})
-                    if resp.url and "news.google.com" not in str(resp.url):
-                        target_url = str(resp.url)
-                    else:
-                        sg_m = re.search(r'data-n-a-sg="([^"]+)"', resp.text)
-                        ts_m = re.search(r'data-n-a-ts="([^"]+)"', resp.text)
-                        if sg_m and ts_m:
-                            import urllib.parse
-                            art_id = urllib.parse.urlparse(url).path.split("/")[-1]
-                            if art_id:
-                                _ctx = [
-                                    ["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
-                                    "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
-                                ]
-                                inner = ["garturlreq", _ctx, art_id, int(ts_m.group(1)), sg_m.group(1)]
-                                envelope = [["Fbv4je", json.dumps(inner, separators=(",", ":")), None, "1"]]
-                                body = "f.req=" + urllib.parse.quote(json.dumps([envelope], separators=(",", ":")))
-                                b_resp = client.post(
-                                    "https://news.google.com/_/DotsSplashUi/data/batchexecute",
-                                    headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
-                                    content=body,
-                                    timeout=6.0,
-                                )
-                                if b_resp.status_code == 200:
-                                    found = [u.rstrip("\\") for u in re.findall(r'"(https?://[^"]+)"', b_resp.text) if "google" not in u]
-                                    if found:
-                                        target_url = found[0]
-            except Exception:
-                pass
+    is_paywall_site = any(domain in url.lower() for domain in PAYWALL_DOMAINS)
+    content = ""
 
-        # 2. Giả mạo trình duyệt Chrome trên Windows để qua mặt hệ thống chống cào của Reuters
-        resp = c_requests.get(
-            target_url,
-            impersonate="chrome120",
-            timeout=10,
-            headers={
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://www.google.com/",
-            }
-        )
-        if resp.status_code == 200 and len(resp.text) > 1000:
-            # Ưu tiên parser chuyên sâu cho domain nếu có
-            dom_text = extract_domain_article(resp.text, target_url)
-            if dom_text and len(dom_text) > 250:
-                clean_dom = sanitize_article_prose(dom_text, min_total_len=200)
-                if clean_dom:
-                    return clean_dom
-
-            # Dùng trafilatura bóc tách văn bản sạch
-            extracted = trafilatura.extract(resp.text, include_comments=False, include_tables=False)
-            if extracted and len(extracted) > 250:
-                clean_ext = sanitize_article_prose(extracted.strip(), min_total_len=200)
-                if clean_ext:
-                    return clean_ext
-                return extracted.strip()
-
-        # 3. Kỹ thuật dự phòng nâng cao cho Reuters/Bloomberg khi bị WAF (401/403) hoặc JS Paywall:
-        # Tự động tra cứu bài gốc từ mạng phân phối tin đối tác (Syndication Wire / Mirrors)
-        query = title
-        if not query:
-            import urllib.parse
-            path = urllib.parse.urlparse(target_url).path
-            slug = path.strip("/").split("/")[-1]
-            if slug:
-                query = slug.replace("-", " ")
-
-        if query and len(query.strip()) > 10:
-            import urllib.parse
-            from bs4 import BeautifulSoup
-            clean_q = re.sub(r'[\'\"’—\-\:\(\)]', ' ', query)
-            clean_q = re.sub(r'\bReuters\b', '', clean_q, flags=re.IGNORECASE).strip()
-            words = [w for w in clean_q.split() if len(w) > 1]
-            ddg_query = " ".join(words[:10])
-            search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(ddg_query)}"
-            try:
-                ddg_resp = c_requests.get(
-                    search_url,
-                    headers={"Referer": "https://www.google.com/"},
-                    impersonate="chrome120",
-                    timeout=8,
-                )
-                if ddg_resp.status_code == 200:
-                    soup = BeautifulSoup(ddg_resp.text, "html.parser")
-                    for a_tag in soup.find_all("a", class_="result__url"):
-                        href = a_tag.get("href", "").strip()
-                        m_target = re.search(r'uddg=([^&]+)', href)
-                        mirror_url = urllib.parse.unquote(m_target.group(1)) if m_target else href
-                        if not mirror_url or "reuters.com" in mirror_url or "google.com" in mirror_url:
-                            continue
-                        try:
-                            m_resp = c_requests.get(
-                                mirror_url,
-                                headers={"Accept-Language": "en-US,en;q=0.9"},
-                                impersonate="chrome120",
-                                timeout=8,
+    # Giải mã Google News nếu cần
+    target_url = url
+    if "news.google.com" in url.lower():
+        try:
+            with httpx.Client(follow_redirects=True, timeout=6.0) as client:
+                resp = client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA})
+                if resp.url and "news.google.com" not in str(resp.url):
+                    target_url = str(resp.url)
+                else:
+                    sg_m = re.search(r'data-n-a-sg="([^"]+)"', resp.text)
+                    ts_m = re.search(r'data-n-a-ts="([^"]+)"', resp.text)
+                    if sg_m and ts_m:
+                        import urllib.parse
+                        art_id = urllib.parse.urlparse(url).path.split("/")[-1]
+                        if art_id:
+                            _ctx = [
+                                ["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
+                                "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
+                            ]
+                            inner = ["garturlreq", _ctx, art_id, int(ts_m.group(1)), sg_m.group(1)]
+                            envelope = [["Fbv4je", json.dumps(inner, separators=(",", ":")), None, "1"]]
+                            body = "f.req=" + urllib.parse.quote(json.dumps([envelope], separators=(",", ":")))
+                            b_resp = client.post(
+                                "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                                headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+                                content=body,
+                                timeout=6.0,
                             )
-                            if m_resp.status_code == 200 and len(m_resp.text) > 1000:
-                                m_ext = trafilatura.extract(m_resp.text, include_comments=False, include_tables=False)
-                                if m_ext and len(m_ext) > 300:
-                                    clean_m = sanitize_article_prose(m_ext.strip(), min_total_len=200)
-                                    return clean_m or m_ext.strip()
+                            if b_resp.status_code == 200:
+                                found = [u.rstrip("\\") for u in re.findall(r'"(https?://[^"]+)"', b_resp.text) if "google" not in u]
+                                if found:
+                                    target_url = found[0]
+        except Exception:
+            pass
+
+    # --- TẦNG 1: Thử tải trực tiếp với Header / Referer Google + unwrap thẻ link ---
+    headers = {
+        "Referer": "https://www.google.com/",
+        "User-Agent": DEFAULT_BROWSER_UA,
+        "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+    }
+    try:
+        if HAS_CURL_CFFI and c_requests:
+            resp = c_requests.get(target_url, headers=headers, impersonate="chrome120", timeout=12)
+            if resp.status_code == 200 and len(resp.text) > 1000:
+                # 1.1. Thử extract_domain_article đã unwrap thẻ <a>
+                dom_txt = extract_domain_article(resp.text, target_url)
+                if dom_txt and len(dom_txt) > 600:
+                    content = dom_txt
+                else:
+                    # 1.2. Thử Next.js Hydration state đã sửa không bị rụng chữ
+                    nd_txt = extract_next_data_article(resp.text)
+                    if nd_txt and len(nd_txt) > 800:
+                        content = nd_txt
+                    else:
+                        content = clean_and_extract_paragraphs(resp.text)
+                        if not content:
+                            raw_ext = trafilatura.extract(resp.text, include_links=False, include_comments=False)
+                            content = sanitize_article_prose(raw_ext or "", min_total_len=200)
+
+                # Nếu lấy được bài dài (> 1200 ký tự) thì trả về luôn
+                if content and len(content) > 1200:
+                    return content
+    except Exception as e:
+        logger.debug(f"[Tầng 1] Lỗi tải trực tiếp {target_url}: {e}")
+
+    # Nếu bài quá ngắn (< 1200 ký tự) hoặc thuộc trang Paywall -> Kích hoạt Bypass
+    if is_paywall_site or len(content or "") < 1200:
+        # --- TẦNG 2: Tìm bản đăng lại hợp pháp trên MSN / Yahoo Finance / Mirror theo Tiêu đề ---
+        if title:
+            try:
+                import urllib.parse
+                clean_title = re.sub(r'[\'\"’—\-\:\(\)]', ' ', title).strip()
+                clean_title = re.sub(r'\b(WSJ|The Wall Street Journal|Bloomberg|Reuters|FT|Financial Times|The Economist)\b', '', clean_title, flags=re.IGNORECASE).strip()
+                words = [w for w in clean_title.split() if len(w) > 1]
+                query = " ".join(words[:10])
+
+                results = []
+                try:
+                    from duckduckgo_search import DDGS
+                    with DDGS() as ddgs:
+                        results = list(ddgs.text(f'"{query}" (site:msn.com OR site:finance.yahoo.com OR site:squawknews.com)', max_results=3))
+                        if not results:
+                            results = list(ddgs.text(query, max_results=3))
+                except Exception:
+                    pass
+
+                # Nếu DDGS không ra, thử fallback qua DDG HTML search
+                if not results and HAS_CURL_CFFI and c_requests:
+                    try:
+                        from bs4 import BeautifulSoup
+                        search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+                        ddg_r = c_requests.get(search_url, headers=headers, impersonate="chrome120", timeout=8)
+                        if ddg_r.status_code == 200:
+                            s = BeautifulSoup(ddg_r.text, "html.parser")
+                            for a_tag in s.find_all("a", class_="result__url"):
+                                h = a_tag.get("href", "").strip()
+                                m_tar = re.search(r'uddg=([^&]+)', h)
+                                m_url = urllib.parse.unquote(m_tar.group(1)) if m_tar else h
+                                if m_url and not any(p in m_url for p in PAYWALL_DOMAINS):
+                                    results.append({"href": m_url})
+                                    if len(results) >= 3:
+                                        break
+                    except Exception:
+                        pass
+
+                for r in results:
+                    mirror_url = r.get("href")
+                    if mirror_url and not any(p in mirror_url for p in PAYWALL_DOMAINS):
+                        try:
+                            m_resp = c_requests.get(mirror_url, impersonate="chrome120", timeout=12) if (HAS_CURL_CFFI and c_requests) else None
+                            if m_resp and m_resp.status_code == 200:
+                                m_content = clean_and_extract_paragraphs(m_resp.text)
+                                if not m_content:
+                                    raw_m = trafilatura.extract(m_resp.text, include_links=False)
+                                    m_content = sanitize_article_prose(raw_m or "", min_total_len=300)
+                                if m_content and len(m_content) > 1000:
+                                    logger.info(f"[Tầng 2] Đã lấy full bài qua Mirror: {mirror_url}")
+                                    return m_content
                         except Exception:
                             continue
-            except Exception:
-                pass
-    except Exception as e:
-        logger.debug(f"curl_cffi fetch error for {url}: {e}")
+            except Exception as e:
+                logger.debug(f"[Tầng 2] Lỗi tìm Mirror: {e}")
 
-    return None
+        # --- TẦNG 3: Kéo bản chụp từ Archive.ph / Wayback Machine ---
+        archive_urls = [
+            f"https://archive.ph/newest/{target_url}",
+            f"https://web.archive.org/web/2/{target_url}"
+        ]
+        for arch_url in archive_urls:
+            try:
+                a_resp = c_requests.get(arch_url, impersonate="chrome120", timeout=15) if (HAS_CURL_CFFI and c_requests) else None
+                if a_resp and a_resp.status_code == 200:
+                    a_content = clean_and_extract_paragraphs(a_resp.text)
+                    if not a_content:
+                        raw_a = trafilatura.extract(a_resp.text, include_links=False)
+                        a_content = sanitize_article_prose(raw_a or "", min_total_len=300)
+                    if a_content and len(a_content) > 1000:
+                        logger.info(f"[Tầng 3] Đã lấy full bài qua Archive: {arch_url}")
+                        return a_content
+            except Exception as e:
+                logger.debug(f"[Tầng 3] Lỗi kéo Archive {arch_url}: {e}")
+
+    # --- FALLBACK CUỐI: Ghép Summary và Content thông minh để tránh lặp câu ---
+    clean_c = sanitize_article_prose(content, min_total_len=100) if content else ""
+    if clean_c and len(clean_c) >= 600:
+        return clean_c
+
+    clean_summary = clean_html_tags(rss_summary).strip()
+    if not clean_c:
+        return clean_summary
+
+    if not clean_summary:
+        return clean_c
+
+    # Kiểm tra tránh lặp câu giữa summary và đoạn đầu của content
+    summary_words = set(clean_summary.lower().split()[:12])
+    first_p = clean_c.split("\n\n")[0]
+    first_words = set(first_p.lower().split()[:12])
+    overlap = len(summary_words.intersection(first_words))
+
+    if overlap >= 5:
+        return clean_c
+
+    return f"{clean_summary}\n\n{clean_c}".strip()
+
+
+async def fetch_full_article_with_bypass_async(url: str, title: str = "", rss_summary: str = "") -> str:
+    """Phiên bản non-blocking async của fetch_full_article_with_bypass."""
+    return await asyncio.to_thread(fetch_full_article_with_bypass, url, title, rss_summary)
+
+
+def fetch_article_content_robust(url: str, title: Optional[str] = None) -> Optional[str]:
+    """
+    Sử dụng curl_cffi và multi-stage bypass để cào sạch bài gốc không bị chặn bot hay paywall.
+    """
+    res = fetch_full_article_with_bypass(url, title=title or "")
+    return res if res and len(res) > 250 else None
 
 
 async def fetch_article_content_robust_async(url: str, title: Optional[str] = None) -> Optional[str]:
@@ -904,6 +1064,15 @@ class SpiderNewsCrawler:
         try:
             # Giải mã link Google News (nếu có) sang URL gốc thực sự trước khi cào
             url = await resolve_real_article_url(url, client)
+
+            # Nếu là trang trong danh mục Paywall cứng (WSJ, Bloomberg, FT, NYT, Economist...),
+            # kích hoạt trực tiếp pipeline lách paywall 3 tầng (Chrome TLS unwrap -> MSN/Yahoo Syndication -> Archive)
+            if any(domain in url.lower() for domain in PAYWALL_DOMAINS):
+                bp_content = await fetch_full_article_with_bypass_async(url, title=title, rss_summary=rss_summary)
+                if bp_content and len(bp_content) > 300:
+                    clean_bp = sanitize_article_prose(bp_content, min_total_len=200)
+                    if clean_bp and len(clean_bp) > 250:
+                        return clean_bp, "tier_paywall_bypass"
 
             html_content = None
 

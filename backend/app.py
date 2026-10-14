@@ -370,6 +370,7 @@ async def enrich_article_record(
     old_content: str,
     crawler: SpiderNewsCrawler,
     client: Optional[httpx.AsyncClient] = None,
+    title: str = "",
 ) -> Optional[str]:
     """
     Cào sâu và làm giàu toàn văn bài viết từ URL gốc bằng Waterfall 6 tầng.
@@ -382,6 +383,7 @@ async def enrich_article_record(
         url=url,
         rss_summary=summary_raw or "",
         client=client,
+        title=title,
     )
     if full_text and len(full_text) > max(len(old_content or ""), 250):
         async with aiosqlite.connect(DEFAULT_DB_PATH, timeout=30.0) as db:
@@ -439,6 +441,7 @@ async def enrich_short_articles_batch(limit: int = 15) -> int:
                         old_content=art["content_clean"] or "",
                         crawler=crawler,
                         client=http_client,
+                        title=art.get("title") or "",
                     )
                     if new_text:
                         enriched_count += 1
@@ -1042,6 +1045,7 @@ async def api_get_single_article(article_id: int, auto_enrich: bool = True):
             summary_raw=row_dict.get("summary_raw") or "",
             old_content=row_dict.get("content_clean") or "",
             crawler=crawler,
+            title=row_dict.get("title") or "",
         )
         if enriched:
             row_dict["content_clean"] = enriched
@@ -1068,18 +1072,20 @@ async def api_fetch_full_article(article_id: int):
         title=title,
     )
 
-    # Nếu nội dung vẫn quá ngắn (< 250 ký tự do dính Hard Paywall / DataDome như The Economist / Reuters),
-    # kích hoạt tầng Deep Scrape đặc trị: curl_cffi Chrome TLS -> Playwright Headless -> Reverse Search
-    if not full_text or len(full_text) <= 250:
-        # 0. Thử cào sạch bài gốc bằng curl_cffi Chrome TLS Impersonation (vượt bot shield Reuters, AP, Bloomberg)
+    # Nếu nội dung vẫn quá ngắn (< 350 ký tự do dính Hard Paywall / DataDome như The Economist / Reuters / WSJ),
+    # kích hoạt tầng Deep Scrape đặc trị: Multi-stage Bypass (TLS impersonation -> MSN/Yahoo syndication -> Archive) -> Playwright -> Reverse Search
+    if not full_text or len(full_text) <= 350:
+        # 0. Thử cào sạch bài gốc bằng Multi-stage Bypass & curl_cffi Chrome TLS Impersonation (vượt bot shield Reuters, AP, Bloomberg, WSJ)
         try:
-            from .rss_crawler import fetch_article_content_robust_async
-            cffi_text = await fetch_article_content_robust_async(row["url"], title=title)
-            if cffi_text and len(cffi_text) > 250:
-                full_text = cffi_text
-                tier = "tier_curl_cffi_robust"
+            from .rss_crawler import fetch_full_article_with_bypass_async
+            bypass_text = await fetch_full_article_with_bypass_async(
+                row["url"], title=title, rss_summary=row["summary_raw"] or ""
+            )
+            if bypass_text and len(bypass_text) > 300:
+                full_text = bypass_text
+                tier = "tier_paywall_bypass"
         except Exception as e:
-            logger.debug(f"Deep scrape curl_cffi error: {e}")
+            logger.debug(f"Deep scrape bypass error: {e}")
 
     if not full_text or len(full_text) <= 250:
         # 1. Thử Playwright Headless (Đợi Google News redirect hoàn tất sang báo gốc rồi mới cào)
