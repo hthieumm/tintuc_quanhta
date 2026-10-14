@@ -447,22 +447,23 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
       style={{
         display: 'flex',
         flex: 1,
+        width: '100%',
         gap: '12px',
         padding: '0 12px',
         overflow: 'hidden',
-        height: 'calc(100vh - 114px)',
+        height: '100%',
         position: 'relative'
       }}
     >
       {/* 1. LEFT SIDEBAR (240px) */}
       <aside
         style={{
-          width: '240px',
+          width: '235px',
           flexShrink: 0,
           backgroundColor: '#EBE6DC',
           borderRadius: '12px',
           border: '1px solid #DCD5C5',
-          padding: '14px',
+          padding: '12px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -880,9 +881,9 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
                 flexShrink: 0
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '17px', fontWeight: 700, color: '#2D4A2B', margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '16.5px', fontWeight: 700, color: '#2D4A2B', margin: 0 }}>
                     {selectedRepo.repo_full_name}
                   </h1>
                   {(() => {
@@ -894,7 +895,7 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
                           color: badge.color,
                           padding: '2px 8px',
                           borderRadius: '4px',
-                          fontSize: '10.5px',
+                          fontSize: '10px',
                           fontWeight: 700
                         }}
                       >
@@ -904,22 +905,22 @@ export const Screen4GitHubRadar: React.FC<Screen4GitHubRadarProps> = ({ onNaviga
                   })()}
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <span style={{ backgroundColor: '#FFF8E1', color: '#8D6E63', padding: '3px 8px', borderRadius: '4px', fontSize: '10.5px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                  <span style={{ backgroundColor: '#FFF8E1', color: '#8D6E63', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                     ★ {selectedRepo.stars.toLocaleString()} Stars
                   </span>
                   {selectedRepo.today_stars > 0 && (
-                    <span style={{ backgroundColor: '#FDF2EE', color: '#C86D51', padding: '3px 8px', borderRadius: '4px', fontSize: '10.5px', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                    <span style={{ backgroundColor: '#FDF2EE', color: '#C86D51', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
                       🔥 +{selectedRepo.today_stars.toLocaleString()}/ngày
                     </span>
                   )}
-                  <span style={{ backgroundColor: '#F5F5F5', color: '#616161', padding: '3px 8px', borderRadius: '4px', fontSize: '10.5px', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ backgroundColor: '#F5F5F5', color: '#616161', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
                     ⑂ {selectedRepo.forks.toLocaleString()} Forks
                   </span>
-                  <span style={{ backgroundColor: '#E8F0E8', color: '#2E7D32', padding: '3px 8px', borderRadius: '4px', fontSize: '10.5px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                  <span style={{ backgroundColor: '#E8F0E8', color: '#2E7D32', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                     {selectedRepo.primary_language || 'Code'}
                   </span>
-                  <span style={{ backgroundColor: '#EAEFF4', color: '#305A78', padding: '3px 8px', borderRadius: '4px', fontSize: '10.5px', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ backgroundColor: '#EAEFF4', color: '#305A78', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
                     {selectedRepo.license || 'Open Source'}
                   </span>
                 </div>
@@ -1407,15 +1408,15 @@ docker run -d --name ${selectedRepo.repo_full_name.replace('/', '-')}-service \\
         )}
       </section>
 
-      {/* 3. RIGHT SIDEBAR: EVALUATION & ACTIONS (280px) */}
+      {/* 3. RIGHT SIDEBAR: EVALUATION & ACTIONS (270px) */}
       <aside
         style={{
-          width: '280px',
+          width: '270px',
           flexShrink: 0,
           backgroundColor: '#FFFFFF',
           borderRadius: '12px',
           border: '1px solid #DCD5C5',
-          padding: '16px',
+          padding: '14px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',

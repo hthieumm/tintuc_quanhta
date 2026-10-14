@@ -179,7 +179,7 @@ export const TopHeaderBar: React.FC<TopHeaderBarProps> = ({
               fontWeight: 700
             }}
           >
-            {engineName.toUpperCase()}: {avgLatencyMs !== null ? `${avgLatencyMs.toFixed(1)}ms` : '8.5ms'}
+            {engineName === 'Decision 3 Lite' ? 'D3 LITE' : engineName.toUpperCase()}: {avgLatencyMs !== null ? `${avgLatencyMs.toFixed(1)}ms` : '8.5ms'}
           </span>
         </div>
 
@@ -209,19 +209,19 @@ export const TopHeaderBar: React.FC<TopHeaderBarProps> = ({
             backgroundColor: '#EBE6DC',
             border: '1px solid #DCD5C5',
             borderRadius: '999px',
-            padding: '3px 8px',
+            padding: '3px 7px',
             fontSize: '10px',
             color: '#5A6B5C',
             fontFamily: 'var(--font-mono)',
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
+            gap: '3px',
             whiteSpace: 'nowrap'
           }}
         >
-          <span style={{ fontSize: '8px' }}>🟢</span>
-          <span>REALTIME</span>
+          <span style={{ fontSize: '7px' }}>🟢</span>
+          <span>LIVE</span>
         </div>
       </div>
     </header>
