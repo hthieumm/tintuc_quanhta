@@ -1,0 +1,13 @@
+{
+  "what_it_does": "Qdrant là cơ sở dữ liệu vector (Vector Database) mã nguồn mở hiệu năng cao viết bằng Rust, chuyên dùng để lưu trữ và tìm kiếm dữ liệu dạng vector embeddings (được tạo ra từ AI) dựa trên độ tương đồng ngữ nghĩa.",
+  "problem_solved": "Cơ sở dữ liệu truyền thống (SQL/NoSQL) chỉ tìm kiếm được từ khóa chính xác (exact match) và bất lực trước dữ liệu phi cấu trúc như hình ảnh, âm thanh hoặc câu từ khác nhau nhưng cùng ý nghĩa. Qdrant giải quyết bài toán tìm kiếm theo 'ý nghĩa' hoặc 'độ giống nhau' trên quy mô hàng triệu đến hàng tỷ vector với tốc độ mili-giây, đồng thời kết hợp lọc điều kiện (metadata filtering) cực kỳ chuẩn xác.",
+  "key_features": [
+    "Viết hoàn toàn bằng Rust giúp tối ưu hóa bộ nhớ, an toàn và đạt tốc độ tìm kiếm cực nhanh với thuật toán HNSW.",
+    "Hỗ trợ Payload-based filtering: Cho phép kết hợp lọc metadata (như giá tiền, danh mục, thời gian) ngay trong lúc tìm kiếm vector mà không làm giảm độ chính xác.",
+    "Hỗ trợ kỹ thuật nén Vector (Scalar/Product Quantization) giúp giảm mức tiêu thụ RAM đáng kể mà vẫn giữ được độ chính xác cao.",
+    "Cung cấp giao diện RESTful API, gRPC và thư viện client đa dạng (Python, TypeScript/JS, Go, Rust, Java)."
+  ],
+  "quickstart": "docker run -p 6333:6333 -p 6334:6334 qdrant/qdrant",
+  "target_audience": "Kỹ sư AI/ML, lập trình viên Backend xây dựng ứng dụng Generative AI (RAG), hệ thống gợi ý sản phẩm (Recommendation System), hoặc công cụ tìm kiếm hình ảnh/ngữ nghĩa thông minh.",
+  "practical_use_case": "Xây dựng hệ thống RAG (Retrieval-Augmented Generation) cho chatbot nội bộ: Chuyển đổi toàn bộ tài liệu PDF hướng dẫn của công ty thành vector và lưu vào Qdrant. Khi nhân viên đặt câu hỏi, Qdrant nhanh chóng tìm ra các đoạn văn bản có nội dung liên quan nhất để cung cấp cho mô hình ngôn ngữ lớn (LLM) trả lời chính xác và tránh bịa đặt."
+}

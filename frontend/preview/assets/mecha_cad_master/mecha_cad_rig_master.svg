@@ -1,0 +1,112 @@
+<svg id="mecha-cad-master-svg" viewBox="0 0 576 1024" width="576" height="1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="cad-laser-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="pivot-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- LƯỚI TỌA ĐỘ CAD HUD -->
+  <g class="cad-grid-layer" opacity="0.45" stroke="#00E5FF" stroke-width="0.7" stroke-dasharray="2 4">
+    <circle cx="288" cy="300" r="260" fill="none" />
+    <circle cx="288" cy="300" r="180" fill="none" />
+    <circle cx="288" cy="300" r="90" fill="none" />
+    <line x1="288" y1="20" x2="288" y2="1000" />
+    <line x1="30" y1="300" x2="546" y2="300" />
+    <line x1="30" y1="180" x2="546" y2="180" />
+    <line x1="30" y1="660" x2="546" y2="660" />
+    <line x1="30" y1="825" x2="546" y2="825" />
+  </g>
+
+  <!-- ==================== HIERARCHICAL SKELETAL RIG ==================== -->
+
+  <!-- CHÂN PISTON KHỔNG LỒ L3 -->
+  <g id="rig-leg-l3" class="leg-l3-root" style="transform-origin: 200px 390px; will-change: transform;">
+    <g class="femur-housing">
+      <image href="assets/mecha_cad_master/leg_l3_femur.png" x="95" y="320" width="150" height="350" />
+    </g>
+    <g id="rig-knee-l3" class="knee-group knee-l3" style="transform-origin: 135px 660px; will-change: transform;">
+      <image href="assets/mecha_cad_master/leg_l3_tibia.png" x="100" y="650" width="80" height="185" />
+      <g id="rig-claw-l3" class="claw-group claw-l3" style="transform-origin: 125px 825px; will-change: transform;">
+        <image href="assets/mecha_cad_master/leg_l3_claw.png" x="110" y="815" width="50" height="180" />
+      </g>
+    </g>
+  </g>
+
+  <!-- CHÂN PISTON KHỔNG LỒ R3 -->
+  <g id="rig-leg-r3" class="leg-r3-root" style="transform-origin: 375px 390px; will-change: transform;">
+    <g class="femur-housing">
+      <image href="assets/mecha_cad_master/leg_r3_femur.png" x="330" y="320" width="150" height="350" />
+    </g>
+    <g id="rig-knee-r3" class="knee-group knee-r3" style="transform-origin: 440px 660px; will-change: transform;">
+      <image href="assets/mecha_cad_master/leg_r3_tibia.png" x="395" y="650" width="80" height="185" />
+      <g id="rig-claw-r3" class="claw-group claw-r3" style="transform-origin: 450px 825px; will-change: transform;">
+        <image href="assets/mecha_cad_master/leg_r3_claw.png" x="415" y="815" width="50" height="180" />
+      </g>
+    </g>
+  </g>
+
+  <!-- CHÂN NGANG L2 -->
+  <g id="rig-leg-l2" class="leg-l2-root" style="transform-origin: 195px 260px; will-change: transform;">
+    <image href="assets/mecha_cad_master/leg_l2_femur.png" x="100" y="235" width="115" height="80" />
+    <g id="rig-knee-l2" class="knee-group knee-l2" style="transform-origin: 115px 280px; will-change: transform;">
+      <image href="assets/mecha_cad_master/leg_l2_tibia.png" x="50" y="265" width="80" height="135" />
+    </g>
+  </g>
+
+  <!-- CHÂN NGANG R2 -->
+  <g id="rig-leg-r2" class="leg-r2-root" style="transform-origin: 380px 260px; will-change: transform;">
+    <image href="assets/mecha_cad_master/leg_r2_femur.png" x="360" y="235" width="115" height="80" />
+    <g id="rig-knee-r2" class="knee-group knee-r2" style="transform-origin: 460px 280px; will-change: transform;">
+      <image href="assets/mecha_cad_master/leg_r2_tibia.png" x="445" y="265" width="80" height="135" />
+    </g>
+  </g>
+
+  <!-- CHÂN TRƯỚC L1 -->
+  <g id="rig-leg-l1" class="leg-l1-root" style="transform-origin: 215px 180px; will-change: transform;">
+    <image href="assets/mecha_cad_master/leg_l1_femur.png" x="110" y="110" width="120" height="130" />
+    <g id="rig-knee-l1" class="knee-group knee-l1" style="transform-origin: 140px 170px; will-change: transform;">
+      <image href="assets/mecha_cad_master/leg_l1_tibia.png" x="120" y="10" width="95" height="175" />
+    </g>
+  </g>
+
+  <!-- CHÂN TRƯỚC R1 -->
+  <g id="rig-leg-r1" class="leg-r1-root" style="transform-origin: 360px 180px; will-change: transform;">
+    <image href="assets/mecha_cad_master/leg_r1_femur.png" x="345" y="110" width="120" height="130" />
+    <g id="rig-knee-r1" class="knee-group knee-r1" style="transform-origin: 435px 170px; will-change: transform;">
+      <image href="assets/mecha_cad_master/leg_r1_tibia.png" x="360" y="10" width="95" height="175" />
+    </g>
+  </g>
+
+  <!-- KHUNG GẦM BUỒNG LÁI TRUNG TÂM -->
+  <g id="rig-chassis-core" style="transform-origin: 288px 280px; will-change: transform;">
+    <image href="assets/mecha_cad_master/body_chassis.png" x="180" y="20" width="216" height="500" />
+    <circle class="spider-eye eye-l" cx="268" cy="190" r="5" fill="#00E5FF" filter="url(#cad-laser-glow)" />
+    <circle class="spider-eye eye-r" cx="308" cy="190" r="5" fill="#00E5FF" filter="url(#cad-laser-glow)" />
+    <circle cx="288" cy="120" r="3" fill="#00E5FF" filter="url(#cad-laser-glow)" />
+  </g>
+
+  <!-- TẦNG TÂM KHỚP PIVOTS -->
+  <g id="cad-pivots-layer" style="display: none;">
+    <circle cx="215" cy="180" r="8" fill="none" stroke="#EF4444" stroke-width="2.5" filter="url(#pivot-glow)" />
+    <circle cx="360" cy="180" r="8" fill="none" stroke="#EF4444" stroke-width="2.5" filter="url(#pivot-glow)" />
+    <circle cx="140" cy="170" r="7" fill="none" stroke="#F59E0B" stroke-width="2" />
+    <circle cx="435" cy="170" r="7" fill="none" stroke="#F59E0B" stroke-width="2" />
+
+    <circle cx="195" cy="260" r="8" fill="none" stroke="#EF4444" stroke-width="2.5" filter="url(#pivot-glow)" />
+    <circle cx="380" cy="260" r="8" fill="none" stroke="#EF4444" stroke-width="2.5" filter="url(#pivot-glow)" />
+    <circle cx="115" cy="280" r="7" fill="none" stroke="#F59E0B" stroke-width="2" />
+    <circle cx="460" cy="280" r="7" fill="none" stroke="#F59E0B" stroke-width="2" />
+
+    <circle cx="200" cy="390" r="9" fill="none" stroke="#EF4444" stroke-width="3" filter="url(#pivot-glow)" />
+    <circle cx="375" cy="390" r="9" fill="none" stroke="#EF4444" stroke-width="3" filter="url(#pivot-glow)" />
+    <circle cx="135" cy="660" r="8" fill="none" stroke="#F59E0B" stroke-width="2.5" />
+    <circle cx="440" cy="660" r="8" fill="none" stroke="#F59E0B" stroke-width="2.5" />
+    <circle cx="125" cy="825" r="7" fill="none" stroke="#10B981" stroke-width="2" />
+    <circle cx="450" cy="825" r="7" fill="none" stroke="#10B981" stroke-width="2" />
+  </g>
+</svg>

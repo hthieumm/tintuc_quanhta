@@ -1,0 +1,165 @@
+function executeContinuousSprintAndLeap(destX, destY, onImpactCallback, onCompleteCallback) {
+      isCrawling = true;
+      const actor = document.getElementById('live-spider-actor');
+      const rotator = document.getElementById('live-spider-rotator');
+      const carrier = document.getElementById('live-spider-body-carrier');
+
+      const startX = spiderCurrentX;
+      const startY = spiderCurrentY;
+      const deltaX = destX - startX;
+      const deltaY = destY - startY;
+      const totalDist = Math.hypot(deltaX, deltaY);
+
+      let targetAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI) + 90;
+      let angleDiff = targetAngle - spiderCurrentAngle;
+      while (angleDiff > 180) angleDiff -= 360;
+      while (angleDiff < -180) angleDiff += 360;
+      targetAngle = spiderCurrentAngle + angleDiff;
+
+      const unifiedTl = gsap.timeline({
+        onComplete: () => {
+          if (currentSkinId === 'mecha') stopMechaWalkAnimation();
+          else if (currentSkinId === 'tribal') stopTribalWalkAnimation();
+          spiderCurrentX = destX;
+          spiderCurrentY = destY;
+          spiderCurrentAngle = targetAngle;
+          actor.classList.remove('spider-in-flight', 'spider-landed');
+          isCrawling = false;
+          activeMasterTimeline = null;
+          if (onCompleteCallback) onCompleteCallback();
+        }
+      });
+      activeMasterTimeline = unifiedTl;
+
+      // 1. Xoay tức thì về phía con mồi (45ms)
+      unifiedTl.to(rotator, {
+        rotation: targetAngle,
+        duration: 0.05,
+        ease: "power2.out"
+      }, 0);
+
+      if (totalDist > 75) {
+        // =========================================================================
+        // KHOẢNG CÁCH XA: Chạy nước rút (Sprint) áp sát ➔ Liền mạch Bật Nhảy (Leap)
+        // 1. Chạy áp sát đến cự ly 50px: từng chân guồng liên thanh sống động (240ms - 400ms)
+        // 2. Chạm cự ly 50px: giương móng vuốt vút lên không trung vồ mồi chớp nhoáng (160ms)
+        // =========================================================================
+        const leapDist = 50; // Cự ly bật nhảy tối ưu
+        const sprintX = destX - (deltaX / totalDist) * leapDist;
+        const sprintY = destY - (deltaY / totalDist) * leapDist;
+        const sprintRunDist = Math.hypot(sprintX - startX, sprintY - startY);
+        // Tốc độ nước rút: Đủ để mắt người nhìn thấy rõ từng chân guồng
+        const sprintDuration = Math.max(0.24, Math.min(0.40, sprintRunDist / 550));
+        const leapDuration = 0.16;
+
+        // Bắt đầu guồng chân chạy nước rút (tần số bước cao 2.4x)
+        unifiedTl.call(() => {
+          startLegSprintAnimation(2.4);
+        }, null, 0.04);
+
+        // Chạy nước rút đến sprintX, sprintY
+        unifiedTl.to(actor, {
+          x: sprintX,
+          y: sprintY,
+          duration: sprintDuration,
+          ease: "power2.inOut"
+        }, 0.04);
+
+        const launchTime = 0.04 + sprintDuration;
+
+        // Tại mốc chạm cự ly 50px: Chuyển sang thế vồ mồi In-Flight & bốc lên Z-axis
+        unifiedTl.call(() => {
+          actor.classList.add('spider-in-flight');
+          triggerPounceFlightStance();
+        }, null, launchTime);
+
+        // Bật nhảy Parabol từ điểm sprint thẳng vào mục tiêu destX, destY
+        unifiedTl.to(actor, {
+          x: destX,
+          y: destY,
+          duration: leapDuration,
+          ease: "power3.out"
+        }, launchTime);
+
+        // Ảo ảnh 3D Z-Axis: Đỉnh nhảy scale 1.28x ➔ Tiếp đất nén đè bẹp 0.90x
+        unifiedTl.to(actor, {
+          scale: 1.28,
+          duration: leapDuration * 0.45,
+          ease: "power2.out"
+        }, launchTime)
+        .to(actor, {
+          scale: 0.90,
+          duration: leapDuration * 0.55,
+          ease: "power3.in",
+          onComplete: () => {
+            actor.classList.remove('spider-in-flight');
+            actor.classList.add('spider-landed');
+            triggerPounceImpactStance();
+            spawnShockwave(destX, destY);
+            leaveFootprint(destX, destY);
+            if (onImpactCallback) onImpactCallback();
+          }
+        }, launchTime + leapDuration * 0.45)
+        .to(actor, {
+          scale: 1.0,
+          duration: 0.22,
+          ease: "elastic.out(1.3, 0.35)"
+        }, launchTime + leapDuration);
+
+        // Giảm xóc Chassis Suspension recoil
+        if (carrier) {
+          unifiedTl.to(carrier, { y: -9, duration: leapDuration * 0.45, ease: "power2.out" }, launchTime)
+                   .to(carrier, { y: 5, duration: leapDuration * 0.55, ease: "power3.in" }, launchTime + leapDuration * 0.45)
+                   .to(carrier, { y: 0, duration: 0.22, ease: "elastic.out(1.2, 0.3)" }, launchTime + leapDuration);
+        }
+
+      } else {
+        // =========================================================================
+        // KHOẢNG CÁCH GẦN (<= 75px): Bật nhảy nhanh trực tiếp
+        // =========================================================================
+        const leapDuration = 0.16;
+        const launchTime = 0.04;
+
+        unifiedTl.call(() => {
+          actor.classList.add('spider-in-flight');
+          triggerPounceFlightStance();
+        }, null, launchTime);
+
+        unifiedTl.to(actor, {
+          x: destX,
+          y: destY,
+          duration: leapDuration,
+          ease: "power3.out"
+        }, launchTime);
+
+        unifiedTl.to(actor, {
+          scale: 1.28,
+          duration: leapDuration * 0.45,
+          ease: "power2.out"
+        }, launchTime)
+        .to(actor, {
+          scale: 0.90,
+          duration: leapDuration * 0.55,
+          ease: "power3.in",
+          onComplete: () => {
+            actor.classList.remove('spider-in-flight');
+            actor.classList.add('spider-landed');
+            triggerPounceImpactStance();
+            spawnShockwave(destX, destY);
+            leaveFootprint(destX, destY);
+            if (onImpactCallback) onImpactCallback();
+          }
+        }, launchTime + leapDuration * 0.45)
+        .to(actor, {
+          scale: 1.0,
+          duration: 0.22,
+          ease: "elastic.out(1.3, 0.35)"
+        }, launchTime + leapDuration);
+
+        if (carrier) {
+          unifiedTl.to(carrier, { y: -9, duration: leapDuration * 0.45, ease: "power2.out" }, launchTime)
+                   .to(carrier, { y: 5, duration: leapDuration * 0.55, ease: "power3.in" }, launchTime + leapDuration * 0.45)
+                   .to(carrier, { y: 0, duration: 0.22, ease: "elastic.out(1.2, 0.3)" }, launchTime + leapDuration);
+        }
+      }
+    }

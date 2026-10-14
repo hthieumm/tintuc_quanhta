@@ -1,0 +1,276 @@
+:root {
+  /* Poetic Botanical Ink Design Tokens */
+  --bg-primary: #F4F1EA;
+  --bg-arena: #FAF8F5;
+  --surface-white: #FFFFFF;
+  --surface-panel: #EBE6DC;
+  --surface-highlight: #FBF9F5;
+  --border-subtle: #DCD5C5;
+  --border-card: #E8E2D5;
+  --text-primary: #2D4A2B;
+  --text-secondary: #5A6B5C;
+  --text-muted: #8A9A86;
+  --accent-emerald: #1B5E20;
+  --accent-emerald-bg: #E8F5E9;
+  --accent-risk: #C86D51;
+  --accent-risk-bg: #FDF2EE;
+  --accent-amber: #E5B869;
+  --accent-amber-bg: #FFF8E1;
+  --accent-tech: #4A6B82;
+  --accent-tech-bg: #EAF1F7;
+  --code-bg: #1E2621;
+  --code-text: #E2F0D9;
+
+  /* Typography */
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+
+  /* Locked Radii */
+  --radius-card: 12px;
+  --radius-pill: 999px;
+  --radius-sm: 6px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Slender Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #DCD5C5;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B0A898;
+}
+
+/* Spider Mark Styling */
+mark.spider-target {
+  background: rgba(248, 175, 166, 0.32);
+  color: #991b1b;
+  border-bottom: 2px dashed #dc2626;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: inline-block;
+}
+
+mark.spider-target:hover {
+  background: rgba(248, 175, 166, 0.55);
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.25);
+  transform: translateY(-1px);
+}
+
+mark.spider-target[data-cat="vang"] {
+  background: rgba(229, 184, 105, 0.3);
+  color: #854d0e;
+  border-bottom-color: #d97706;
+}
+
+mark.spider-target[data-cat="chung_khoan"] {
+  background: rgba(27, 94, 32, 0.22);
+  color: #065f46;
+  border-bottom-color: #1b5e20;
+}
+
+mark.spider-target[data-cat="chinh_tri"] {
+  background: rgba(124, 58, 237, 0.22);
+  color: #5b21b6;
+  border-bottom-color: #7c3aed;
+}
+
+mark.spider-target[data-cat="github"] {
+  background: rgba(74, 107, 130, 0.25);
+  color: #1e3a8a;
+  border-bottom-color: #3b82f6;
+}
+
+/* Transient Silk Filament */
+.filament-line {
+  fill: none;
+  pointer-events: none;
+}
+
+@keyframes filamentFade {
+  0% {
+    opacity: 0.85;
+    stroke-dashoffset: 0;
+  }
+  70% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 200;
+  }
+}
+
+/* Chitin Vector Style (Gothic Tribal) */
+.tribal-chitin {
+  fill: #09070f;
+  stroke: rgba(168, 85, 247, 0.55);
+  stroke-width: 0.9px;
+}
+
+/* Spider Actor Modes */
+.spider-actor-mecha {
+  width: 104px !important;
+  height: 104px !important;
+  margin-left: -52px !important;
+  margin-top: -52px !important;
+  filter: drop-shadow(0 8px 18px rgba(15, 23, 42, 0.45));
+}
+
+.spider-actor-tribal {
+  width: 104px !important;
+  height: 104px !important;
+  margin-left: -52px !important;
+  margin-top: -52px !important;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.40));
+}
+
+.spider-actor-mecha.spider-in-flight {
+  filter: drop-shadow(0 26px 24px rgba(0, 229, 255, 0.45)) !important;
+  transition: filter 0.1s ease-out;
+}
+.spider-actor-mecha.spider-landed {
+  filter: drop-shadow(0 3px 5px rgba(0, 229, 255, 0.75)) !important;
+  transition: filter 0.08s ease-out;
+}
+
+.spider-actor-tribal.spider-in-flight {
+  filter: drop-shadow(0 26px 24px rgba(124, 58, 237, 0.55)) !important;
+  transition: filter 0.1s ease-out;
+}
+.spider-actor-tribal.spider-landed {
+  filter: drop-shadow(0 3px 5px rgba(124, 58, 237, 0.85)) !important;
+  transition: filter 0.08s ease-out;
+}
+
+/* CAD Reticle Target Footprint & Claw Marks - Hidden */
+.cad-reticle,
+.tribal-claw-mark {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Impact Shockwave Rings */
+.leap-shockwave {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 45;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  animation: leapShockwaveAnim 0.42s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+.leap-shockwave.mecha-shockwave {
+  border: 2px solid #00E5FF;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.85);
+}
+.leap-shockwave.tribal-shockwave {
+  border: 2px solid #C084FC;
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.85);
+}
+@keyframes leapShockwaveAnim {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; border-width: 3px; }
+  100% { transform: translate(-50%, -50%) scale(5.2); opacity: 0; border-width: 0.5px; }
+}
+
+/* Node Flash Receiving Pulse */
+.node-flash-mecha {
+  border-color: #00E5FF !important;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.5) !important;
+  background: #F0FDFA !important;
+  transform: scale(1.02);
+}
+.node-flash-tribal {
+  border-color: #8B5CF6 !important;
+  box-shadow: 0 0 22px rgba(139, 92, 246, 0.5) !important;
+  background: #F5F3FF !important;
+  transform: scale(1.02);
+}
+
+/* Reusable UI Utilities */
+.btn-pill {
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn-pill:hover {
+  transform: translateY(-1px);
+}
+
+.btn-pill-primary {
+  background: #2D4A2B;
+  color: #FAF8F5;
+  border-color: #2D4A2B;
+}
+.btn-pill-primary:hover {
+  background: #1B3819;
+}
+
+.btn-pill-secondary {
+  background: #FFFFFF;
+  color: #2D4A2B;
+  border-color: #DCD5C5;
+}
+.btn-pill-secondary:hover {
+  background: #F4F1EA;
+}
+
+.btn-pill-danger {
+  background: #C86D51;
+  color: #FFFFFF;
+  border-color: #C86D51;
+}
+.btn-pill-danger:hover {
+  background: #B35B40;
+}
+
+/* Card Container Styles */
+.card-sheet {
+  background: var(--surface-white);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: 0 2px 8px rgba(45, 74, 43, 0.04);
+}

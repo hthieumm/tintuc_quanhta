@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spider News Radar — Phòng Thí Nghiệm Gothic Tribal Neon Rig (24 Khớp)</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #08060f;
+      --panel-bg: rgba(16, 12, 28, 0.85);
+      --border-color: rgba(139, 92, 246, 0.25);
+      --accent-neon: #a855f7;
+      --accent-cyan: #06b6d4;
+      --accent-pink: #ec4899;
+      --text-main: #f3e8ff;
+      --text-dim: #a89cb8;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* Top Telemetry Header */
+    header {
+      background: rgba(12, 9, 22, 0.95);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-badge {
+      background: linear-gradient(135deg, #7c3aed, #ec4899);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .title-box h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+    .title-box p {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+    .telemetry-pills {
+      display: flex;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .pill {
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid var(--border-color);
+      padding: 6px 14px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pill.active {
+      border-color: var(--accent-neon);
+      color: #d8b4fe;
+    }
+    .pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    /* Main Workspace Layout */
+    .workspace {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 58px);
+      position: relative;
+    }
+
+    /* Left: Canvas Area */
+    .canvas-panel {
+      flex: 1;
+      position: relative;
+      background: radial-gradient(circle at center, #170f2e 0%, #08060f 80%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Gothic Grid Background */
+    .grid-overlay {
+      position: absolute;
+      inset: 0;
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+      pointer-events: none;
+    }
+
+    .viewport-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      position: relative;
+    }
+    .viewport-container:active {
+      cursor: grabbing;
+    }
+
+    #tribal-svg-stage {
+      width: 640px;
+      height: 860px;
+      max-height: 92%;
+      filter: drop-shadow(0 15px 35px rgba(0,0,0,0.8));
+      transform-origin: center center;
+      transition: transform 0.05s ease-out;
+    }
+
+    /* Vector Chitin Styling */
+    .tribal-chitin {
+      fill: #09070f;
+      stroke: #2e1d4d;
+      stroke-width: 0.8px;
+      transition: fill 0.3s;
+    }
+    .tribal-joint-dot {
+      fill: var(--accent-cyan);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .show-joints .tribal-joint-dot {
+      opacity: 0.85;
+    /* FOREST SPIRIT WISP PREY (LINH HỒN CON MỒI ĐOM ĐÓM) */
+    .hunt-wisp {
+      position: absolute;
+      top: 18%;
+      right: 22%;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 45;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.2s, opacity 0.3s;
+    }
+    .hunt-wisp:hover { transform: scale(1.18); }
+    .wisp-aura {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.45), transparent 70%);
+      animation: wispPulse 1.2s infinite alternate ease-in-out;
+    }
+    .wisp-core {
+      width: 28px;
+      height: 28px;
+      background: radial-gradient(circle, #facc15 0%, #a855f7 65%, #3b0764 100%);
+      border-radius: 50%;
+      box-shadow: 0 0 20px #c084fc, 0 0 30px #facc15;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      animation: wispFloat 2s infinite ease-in-out alternate;
+    }
+    @keyframes wispPulse {
+      0% { transform: scale(0.9); opacity: 0.5; }
+      100% { transform: scale(1.4); opacity: 1; }
+    }
+    @keyframes wispFloat {
+      0% { transform: translateY(-4px); }
+      100% { transform: translateY(4px); }
+    }
+    .wisp-label {
+      position: absolute;
+      bottom: -18px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: #c084fc;
+      white-space: nowrap;
+      font-weight: 700;
+      background: rgba(15, 10, 26, 0.85);
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+    }
+    .tribal-shockwave {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #c084fc;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 50;
+      transform: translate(-50%, -50%);
+    }
+
+    /* Floating Viewport Controls */
+    .canvas-controls {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      display: flex;
+      gap: 8px;
+      z-index: 50;
+    }
+    .ctrl-btn {
+      background: rgba(20, 15, 36, 0.9);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .ctrl-btn:hover {
+      background: rgba(139, 92, 246, 0.3);
+      border-color: var(--accent-neon);
+      color: #fff;
+    }
+
+    /* Right: Control Sidebar */
+    .controls-panel {
+      width: 380px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border-left: 1px solid var(--border-color);
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 50;
+    }
+    .controls-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .controls-panel::-webkit-scrollbar-thumb {
+      background: rgba(139, 92, 246, 0.3);
+      border-radius: 3px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-neon);
+      font-family: var(--font-mono);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Presets Grid */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .preset-card {
+      background: rgba(26, 18, 48, 0.6);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    .preset-card:hover {
+      border-color: var(--accent-neon);
+      background: rgba(139, 92, 246, 0.15);
+    }
+    .preset-card.active {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.15);
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.25);
+    }
+    .preset-card h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preset-card p {
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.3;
+    }
+
+    /* Speed Slider */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+    }
+
+    /* Action Buttons */
+    .action-btn {
+      background: linear-gradient(135deg, #7c3aed, #06b6d4);
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .action-btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+    }
+
+    /* Glow Color Pills */
+    .glow-theme-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .theme-pill {
+      background: rgba(26, 18, 48, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 6px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .theme-pill.active {
+      border-color: #fff;
+      font-weight: 700;
+    }
+
+    /* Manual Joints Accordion */
+    .joints-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .leg-accordion {
+      background: rgba(22, 16, 42, 0.5);
+      border: 1px solid rgba(139, 92, 246, 0.15);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .leg-header {
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: #d8b4fe;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .leg-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .joint-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+    }
+    .joint-label {
+      width: 50px;
+      color: var(--text-dim);
+    }
+    .joint-ctrl input[type="range"] {
+      flex: 1;
+      height: 4px;
+      accent-color: var(--accent-neon);
+    }
+    .joint-val {
+      width: 32px;
+      text-align: right;
+      color: #fff;
+    }
+
+    /* Silk Laser Canvas Overlay */
+    #silk-canvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 40;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Telemetry Header -->
+  <header>
+    <div class="logo-group">
+      <div class="logo-badge">🗡️</div>
+      <div class="title-box">
+        <h1>SPIDER RADAR — GOTHIC TRIBAL NEON RIG LABORATORY</h1>
+        <p>Pure Vector Hierarchical Skeletal Rig • 24 Articulated Joints • 60 FPS GSAP</p>
+      </div>
+    </div>
+    <div class="telemetry-pills">
+      <div class="pill active">
+        <div class="pill-dot"></div>
+        <span id="telemetry-status">KINEMATICS: ACTIVE</span>
+      </div>
+      <div class="pill">
+        <span>FPS:</span>
+        <strong id="fps-display" style="color: var(--accent-cyan);">60.0</strong>
+      </div>
+      <div class="pill">
+        <span>JOINTS: 24/24 RIGGED</span>
+      </div>
+      <a href="spider_showcase.html" style="text-decoration: none;">
+        <div class="pill" style="cursor: pointer; background: rgba(139, 92, 246, 0.2);">
+          <span>↗ Xem Showcase 6 Skin</span>
+        </div>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="workspace">
+    <!-- Canvas Area -->
+    <div class="canvas-panel" id="canvas-panel">
+      <div class="grid-overlay"></div>
+      <!-- FOREST SPIRIT WISP PREY (LINH HỒN ĐOM ĐÓM CON MỒI) -->
+      <div id="hunt-wisp" class="hunt-wisp" onclick="runFullTribalHuntSequence()" title="Click để nhện rình rập và săn linh hồn này!">
+        <div class="wisp-aura"></div>
+        <div class="wisp-core">✨</div>
+        <div class="wisp-label" id="wisp-status-txt">FOREST SPIRIT #01</div>
+      </div>
+
+      <div class="viewport-container" id="viewport-container">
+        <!-- SVG TRIBAL VECTOR RIG (24 JOINTS) -->
+        <svg id="tribal-svg-stage" viewBox="49 20 860 860">
+          <defs>
+            <!-- Gothic Neon Aura Filter -->
+            <filter id="tribal-neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="12" result="blur" />
+              <feColorMatrix type="matrix" values="
+                0.5 0 0 0 0.5
+                0 0.2 0 0 0.2
+                0.8 0 1 0 0.9
+                0 0 0 1 0" in="blur" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <!-- Cyan Glow Filter -->
+            <filter id="cyan-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          <!-- Ambient Neon Purple Aura -->
+          <ellipse id="tribal-aura" cx="479" cy="500" rx="145" ry="185" fill="rgba(124, 58, 237, 0.16)" filter="url(#tribal-neon-glow)" />
+
+          <!-- Master Skeleton Group -->
+          <g id="tribal-spider-master" transform="translate(0, 0)">
+
+            <!-- 8 HIERARCHICAL ARTICULATED LEGS (24 JOINTS) -->
+            <g id="tribal-legs-group">
+
+              <!-- === LEFT LEG 1 (Front Left) === -->
+              <g id="tribal_L1_s1" data-rest="0" style="transform-origin: 440px 380px;">
+                <path class="tribal-chitin" d="M 418 312 L 413 314 L 410 320 L 413 326 L 418 328 L 419 327 L 420 346 L 418 358 L 415 368 L 415 377 L 417 380 L 420 381 L 424 385 L 424 387 L 426 386 L 438 399 L 440 400 L 440 404 L 443 405 L 446 411 L 445 413 L 446 415 L 448 414 L 448 409 L 446 401 L 441 392 L 441 387 L 445 386 L 448 380 L 445 374 L 440 372 L 435 374 L 433 372 L 431 361 L 429 339 L 428 334 L 424 324 L 426 320 L 424 315 Z M 433 322 L 433 324 L 436 330 L 435 334 L 436 332 L 440 343 L 443 355 L 444 365 L 446 369 L 447 366 L 447 344 L 443 325 L 442 323 Z M 409 322 L 402 323 L 402 335 L 398 356 L 400 355 L 401 353 L 402 355 L 403 353 L 401 352 L 404 347 L 408 335 Z" />
+                <circle class="tribal-joint-dot" cx="440" cy="380" r="3.5" />
+                <g id="tribal_L1_s2" data-rest="0" style="transform-origin: 418px 320px;">
+                  <path class="tribal-chitin" d="M 368 242 L 368 253 L 372 278 L 374 282 L 373 285 L 376 288 L 376 291 L 382 304 L 386 309 L 388 309 L 388 304 L 391 291 L 393 288 L 392 287 L 393 284 L 397 278 L 399 281 L 398 286 L 399 284 L 401 291 L 403 310 L 402 328 L 409 328 L 410 320 L 413 326 L 418 328 L 425 328 L 424 324 L 426 320 L 423 314 L 418 312 L 415 313 L 412 315 L 410 320 L 409 302 L 410 298 L 412 296 L 411 294 L 413 292 L 415 295 L 419 294 L 425 304 L 425 308 L 427 308 L 435 328 L 443 328 L 443 325 L 441 322 L 440 316 L 435 304 L 428 280 L 427 274 L 427 246 L 425 247 L 425 248 L 422 249 L 421 253 L 419 254 L 414 263 L 411 263 L 411 260 L 410 259 L 411 256 L 409 256 L 408 252 L 411 250 L 413 245 L 411 240 L 408 238 L 405 237 L 400 239 L 399 241 Z" />
+                  <circle class="tribal-joint-dot" cx="418" cy="320" r="3.5" />
+                  <g id="tribal_L1_s3" data-rest="0" style="transform-origin: 405px 245px;">
+                    <path class="tribal-chitin" d="M 430 44 L 426 46 L 424 49 L 420 49 L 422 52 L 417 56 L 415 61 L 412 65 L 410 65 L 408 71 L 401 82 L 398 83 L 399 85 L 397 89 L 395 91 L 389 104 L 387 104 L 388 107 L 384 117 L 382 119 L 373 151 L 368 187 L 367 207 L 367 239 L 368 240 L 368 248 L 399 249 L 400 251 L 405 253 L 410 251 L 413 245 L 411 240 L 405 237 L 404 235 L 404 230 L 402 223 L 402 216 L 400 209 L 398 191 L 398 155 L 399 146 L 401 144 L 400 139 L 403 123 L 407 107 L 409 104 L 408 103 L 410 96 L 413 90 L 414 84 L 417 80 L 418 75 L 419 78 L 420 68 L 424 60 L 428 47 L 430 47 Z" />
+                    <circle class="tribal-joint-dot" cx="405" cy="245" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === RIGHT LEG 1 (Front Right) === -->
+              <g id="tribal_R1_s1" data-rest="0" style="transform-origin: 518px 380px;">
+                <path class="tribal-chitin" d="M 540.0 312.0 L 545.0 314.0 L 548.0 320.0 L 545.0 326.0 L 540.0 328.0 L 539.0 327.0 L 538.0 346.0 L 540.0 358.0 L 543.0 368.0 L 543.0 377.0 L 541.0 380.0 L 538.0 381.0 L 534.0 385.0 L 534.0 387.0 L 532.0 386.0 L 520.0 399.0 L 518.0 400.0 L 518.0 404.0 L 515.0 405.0 L 512.0 411.0 L 513.0 413.0 L 512.0 415.0 L 510.0 414.0 L 510.0 409.0 L 512.0 401.0 L 517.0 392.0 L 517.0 387.0 L 513.0 386.0 L 510.0 380.0 L 513.0 374.0 L 518.0 372.0 L 523.0 374.0 L 525.0 372.0 L 527.0 361.0 L 529.0 339.0 L 530.0 334.0 L 534.0 324.0 L 532.0 320.0 L 534.0 315.0 Z M 525.0 322.0 L 525.0 324.0 L 522.0 330.0 L 523.0 334.0 L 522.0 332.0 L 518.0 343.0 L 515.0 355.0 L 514.0 365.0 L 512.0 369.0 L 511.0 366.0 L 511.0 344.0 L 515.0 325.0 L 516.0 323.0 Z M 549.0 322.0 L 556.0 323.0 L 556.0 335.0 L 560.0 356.0 L 558.0 355.0 L 557.0 353.0 L 556.0 355.0 L 555.0 353.0 L 557.0 352.0 L 554.0 347.0 L 550.0 335.0 Z" />
+                <circle class="tribal-joint-dot" cx="518" cy="380" r="3.5" />
+                <g id="tribal_R1_s2" data-rest="0" style="transform-origin: 540px 320px;">
+                  <path class="tribal-chitin" d="M 590.0 242.0 L 590.0 253.0 L 586.0 278.0 L 584.0 282.0 L 585.0 285.0 L 582.0 288.0 L 582.0 291.0 L 576.0 304.0 L 572.0 309.0 L 570.0 309.0 L 570.0 304.0 L 567.0 291.0 L 565.0 288.0 L 566.0 287.0 L 565.0 284.0 L 561.0 278.0 L 559.0 281.0 L 560.0 286.0 L 559.0 284.0 L 557.0 291.0 L 555.0 310.0 L 556.0 328.0 L 549.0 328.0 L 548.0 320.0 L 545.0 326.0 L 540.0 328.0 L 533.0 328.0 L 534.0 324.0 L 532.0 320.0 L 535.0 314.0 L 540.0 312.0 L 543.0 313.0 L 546.0 315.0 L 548.0 320.0 L 549.0 302.0 L 548.0 298.0 L 546.0 296.0 L 547.0 294.0 L 545.0 292.0 L 543.0 295.0 L 539.0 294.0 L 533.0 304.0 L 533.0 308.0 L 531.0 308.0 L 523.0 328.0 L 515.0 328.0 L 515.0 325.0 L 517.0 322.0 L 518.0 316.0 L 523.0 304.0 L 530.0 280.0 L 531.0 274.0 L 531.0 246.0 L 533.0 247.0 L 533.0 248.0 L 536.0 249.0 L 537.0 253.0 L 539.0 254.0 L 544.0 263.0 L 547.0 263.0 L 547.0 260.0 L 548.0 259.0 L 547.0 256.0 L 549.0 256.0 L 550.0 252.0 L 547.0 250.0 L 545.0 245.0 L 547.0 240.0 L 550.0 238.0 L 553.0 237.0 L 558.0 239.0 L 559.0 241.0 Z" />
+                  <circle class="tribal-joint-dot" cx="540" cy="320" r="3.5" />
+                  <g id="tribal_R1_s3" data-rest="0" style="transform-origin: 553px 245px;">
+                    <path class="tribal-chitin" d="M 528.0 44.0 L 532.0 46.0 L 534.0 49.0 L 538.0 49.0 L 536.0 52.0 L 541.0 56.0 L 543.0 61.0 L 546.0 65.0 L 548.0 65.0 L 550.0 71.0 L 557.0 82.0 L 560.0 83.0 L 559.0 85.0 L 561.0 89.0 L 563.0 91.0 L 569.0 104.0 L 571.0 104.0 L 570.0 107.0 L 574.0 117.0 L 576.0 119.0 L 585.0 151.0 L 590.0 187.0 L 591.0 207.0 L 591.0 239.0 L 590.0 240.0 L 590.0 248.0 L 559.0 249.0 L 558.0 251.0 L 553.0 253.0 L 548.0 251.0 L 545.0 245.0 L 547.0 240.0 L 553.0 237.0 L 554.0 235.0 L 554.0 230.0 L 556.0 223.0 L 556.0 216.0 L 558.0 209.0 L 560.0 191.0 L 560.0 155.0 L 559.0 146.0 L 557.0 144.0 L 558.0 139.0 L 555.0 123.0 L 551.0 107.0 L 549.0 104.0 L 550.0 103.0 L 548.0 96.0 L 545.0 90.0 L 544.0 84.0 L 541.0 80.0 L 540.0 75.0 L 539.0 78.0 L 538.0 68.0 L 534.0 60.0 L 530.0 47.0 L 528.0 47.0 Z" />
+                    <circle class="tribal-joint-dot" cx="553" cy="245" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === LEFT LEG 2 (Upper-Lateral Left) === -->
+              <g id="tribal_L2_s1" data-rest="0" style="transform-origin: 440px 425px;">
+                <path class="tribal-chitin" d="M 388 403 L 388 407 L 384 410 L 382 415 L 384 420 L 388 423 L 388 429 L 404 429 L 419 431 L 423 433 L 424 432 L 433 435 L 443 440 L 442 432 L 446 430 L 448 425 L 445 419 L 440 417 L 435 419 L 433 423 L 431 424 L 426 420 L 420 417 L 392 406 Z" />
+                <circle class="tribal-joint-dot" cx="440" cy="425" r="3.5" />
+                <g id="tribal_L2_s2" data-rest="0" style="transform-origin: 390px 415px;">
+                  <path class="tribal-chitin" d="M 329 307 L 330 311 L 328 315 L 327 320 L 327 335 L 325 337 L 327 337 L 326 340 L 323 338 L 321 338 L 318 335 L 317 333 L 318 332 L 316 330 L 315 339 L 312 345 L 315 351 L 315 371 L 316 374 L 319 374 L 320 377 L 332 387 L 330 389 L 328 387 L 331 390 L 333 388 L 334 391 L 336 393 L 339 394 L 336 395 L 338 395 L 340 398 L 341 396 L 357 411 L 355 412 L 356 414 L 360 414 L 362 416 L 362 418 L 364 417 L 366 419 L 368 419 L 371 417 L 372 421 L 374 423 L 374 425 L 377 429 L 377 431 L 385 429 L 394 429 L 394 422 L 397 418 L 398 415 L 396 410 L 394 408 L 394 406 L 390 405 L 385 401 L 383 401 L 381 399 L 381 397 L 383 395 L 379 398 L 375 392 L 371 391 L 373 389 L 371 390 L 367 383 L 365 383 L 363 379 L 367 374 L 375 382 L 372 385 L 374 385 L 376 382 L 381 386 L 378 386 L 385 388 L 387 390 L 389 390 L 394 393 L 393 390 L 391 390 L 387 387 L 384 386 L 382 384 L 383 381 L 380 382 L 377 377 L 373 375 L 375 373 L 373 375 L 369 368 L 367 367 L 367 365 L 362 362 L 361 359 L 359 358 L 358 354 L 355 353 L 350 346 L 350 343 L 348 343 L 342 333 L 342 329 L 341 327 L 339 327 L 335 319 L 331 307 L 330 309 Z" />
+                  <circle class="tribal-joint-dot" cx="390" cy="415" r="3.5" />
+                  <g id="tribal_L2_s3" data-rest="0" style="transform-origin: 320px 345px;">
+                    <path class="tribal-chitin" d="M 287 177 L 285 178 L 283 182 L 280 183 L 281 185 L 278 189 L 278 184 L 278 191 L 272 204 L 266 230 L 263 259 L 263 277 L 265 309 L 268 329 L 274 353 L 277 359 L 278 367 L 281 368 L 282 370 L 282 374 L 284 374 L 287 383 L 285 383 L 287 383 L 288 382 L 291 386 L 296 397 L 301 400 L 302 402 L 300 404 L 299 402 L 300 404 L 302 405 L 300 407 L 303 403 L 305 406 L 312 411 L 312 413 L 314 415 L 316 415 L 318 414 L 318 410 L 316 410 L 315 407 L 313 405 L 314 403 L 313 401 L 312 403 L 309 399 L 309 395 L 307 395 L 307 392 L 305 392 L 298 373 L 298 365 L 302 364 L 301 366 L 302 364 L 304 364 L 306 365 L 307 368 L 309 367 L 315 371 L 316 374 L 319 374 L 320 377 L 322 377 L 322 353 L 326 350 L 328 345 L 326 340 L 321 338 L 318 335 L 318 332 L 316 330 L 313 329 L 313 327 L 310 325 L 307 317 L 305 317 L 303 314 L 302 310 L 300 308 L 297 301 L 297 296 L 295 296 L 293 290 L 294 287 L 292 287 L 292 284 L 290 280 L 286 259 L 284 241 L 284 212 L 286 186 L 287 185 Z" />
+                    <circle class="tribal-joint-dot" cx="320" cy="345" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === RIGHT LEG 2 (Upper-Lateral Right) === -->
+              <g id="tribal_R2_s1" data-rest="0" style="transform-origin: 518px 425px;">
+                <path class="tribal-chitin" d="M 570.0 403.0 L 570.0 407.0 L 574.0 410.0 L 576.0 415.0 L 574.0 420.0 L 570.0 423.0 L 570.0 429.0 L 554.0 429.0 L 539.0 431.0 L 535.0 433.0 L 534.0 432.0 L 525.0 435.0 L 515.0 440.0 L 516.0 432.0 L 512.0 430.0 L 510.0 425.0 L 513.0 419.0 L 518.0 417.0 L 523.0 419.0 L 525.0 423.0 L 527.0 424.0 L 532.0 420.0 L 538.0 417.0 L 566.0 406.0 Z" />
+                <circle class="tribal-joint-dot" cx="518" cy="425" r="3.5" />
+                <g id="tribal_R2_s2" data-rest="0" style="transform-origin: 568px 415px;">
+                  <path class="tribal-chitin" d="M 629.0 307.0 L 628.0 311.0 L 630.0 315.0 L 631.0 320.0 L 631.0 335.0 L 633.0 337.0 L 631.0 337.0 L 632.0 340.0 L 635.0 338.0 L 637.0 338.0 L 640.0 335.0 L 641.0 333.0 L 640.0 332.0 L 642.0 330.0 L 643.0 339.0 L 646.0 345.0 L 643.0 351.0 L 643.0 371.0 L 642.0 374.0 L 639.0 374.0 L 638.0 377.0 L 626.0 387.0 L 628.0 389.0 L 630.0 387.0 L 627.0 390.0 L 625.0 388.0 L 624.0 391.0 L 622.0 393.0 L 619.0 394.0 L 622.0 395.0 L 620.0 395.0 L 618.0 398.0 L 617.0 396.0 L 601.0 411.0 L 603.0 412.0 L 602.0 414.0 L 598.0 414.0 L 596.0 416.0 L 596.0 418.0 L 594.0 417.0 L 592.0 419.0 L 590.0 419.0 L 587.0 417.0 L 586.0 421.0 L 584.0 423.0 L 584.0 425.0 L 581.0 429.0 L 581.0 431.0 L 573.0 429.0 L 564.0 429.0 L 564.0 422.0 L 561.0 418.0 L 560.0 415.0 L 562.0 410.0 L 564.0 408.0 L 564.0 406.0 L 568.0 405.0 L 573.0 401.0 L 575.0 401.0 L 577.0 399.0 L 577.0 397.0 L 575.0 395.0 L 579.0 398.0 L 583.0 392.0 L 587.0 391.0 L 585.0 389.0 L 587.0 390.0 L 591.0 383.0 L 593.0 383.0 L 595.0 379.0 L 591.0 374.0 L 583.0 382.0 L 586.0 385.0 L 584.0 385.0 L 582.0 382.0 L 577.0 386.0 L 580.0 386.0 L 573.0 388.0 L 571.0 390.0 L 569.0 390.0 L 564.0 393.0 L 565.0 390.0 L 567.0 390.0 L 571.0 387.0 L 574.0 386.0 L 576.0 384.0 L 575.0 381.0 L 578.0 382.0 L 581.0 377.0 L 585.0 375.0 L 583.0 373.0 L 585.0 375.0 L 589.0 368.0 L 591.0 367.0 L 591.0 365.0 L 596.0 362.0 L 597.0 359.0 L 599.0 358.0 L 600.0 354.0 L 603.0 353.0 L 608.0 346.0 L 608.0 343.0 L 610.0 343.0 L 616.0 333.0 L 616.0 329.0 L 617.0 327.0 L 619.0 327.0 L 623.0 319.0 L 627.0 307.0 L 628.0 309.0 Z" />
+                  <circle class="tribal-joint-dot" cx="568" cy="415" r="3.5" />
+                  <g id="tribal_R2_s3" data-rest="0" style="transform-origin: 638px 345px;">
+                    <path class="tribal-chitin" d="M 671.0 177.0 L 673.0 178.0 L 675.0 182.0 L 678.0 183.0 L 677.0 185.0 L 680.0 189.0 L 680.0 184.0 L 680.0 191.0 L 686.0 204.0 L 692.0 230.0 L 695.0 259.0 L 695.0 277.0 L 693.0 309.0 L 690.0 329.0 L 684.0 353.0 L 681.0 359.0 L 680.0 367.0 L 677.0 368.0 L 676.0 370.0 L 676.0 374.0 L 674.0 374.0 L 671.0 383.0 L 673.0 383.0 L 671.0 383.0 L 670.0 382.0 L 667.0 386.0 L 662.0 397.0 L 657.0 400.0 L 656.0 402.0 L 658.0 404.0 L 659.0 402.0 L 658.0 404.0 L 656.0 405.0 L 658.0 407.0 L 655.0 403.0 L 653.0 406.0 L 646.0 411.0 L 646.0 413.0 L 644.0 415.0 L 642.0 415.0 L 640.0 414.0 L 640.0 410.0 L 642.0 410.0 L 643.0 407.0 L 645.0 405.0 L 644.0 403.0 L 645.0 401.0 L 646.0 403.0 L 649.0 399.0 L 649.0 395.0 L 651.0 395.0 L 651.0 392.0 L 653.0 392.0 L 660.0 373.0 L 660.0 365.0 L 656.0 364.0 L 657.0 366.0 L 656.0 364.0 L 654.0 364.0 L 652.0 365.0 L 651.0 368.0 L 649.0 367.0 L 643.0 371.0 L 642.0 374.0 L 639.0 374.0 L 638.0 377.0 L 636.0 377.0 L 636.0 353.0 L 632.0 350.0 L 630.0 345.0 L 632.0 340.0 L 637.0 338.0 L 640.0 335.0 L 640.0 332.0 L 642.0 330.0 L 645.0 329.0 L 645.0 327.0 L 648.0 325.0 L 651.0 317.0 L 653.0 317.0 L 655.0 314.0 L 656.0 310.0 L 658.0 308.0 L 661.0 301.0 L 661.0 296.0 L 663.0 296.0 L 665.0 290.0 L 664.0 287.0 L 666.0 287.0 L 666.0 284.0 L 668.0 280.0 L 672.0 259.0 L 674.0 241.0 L 674.0 212.0 L 672.0 186.0 L 671.0 185.0 Z" />
+                    <circle class="tribal-joint-dot" cx="638" cy="345" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === LEFT LEG 3 (Lower-Lateral Left) === -->
+              <g id="tribal_L3_s1" data-rest="0" style="transform-origin: 440px 465px;">
+                <path class="tribal-chitin" d="M 358 489 L 361 488 L 373 479 L 375 481 L 373 479 L 384 471 L 391 470 L 389 469 L 392 467 L 396 467 L 396 465 L 407 461 L 433 457 L 438 454 L 441 451 L 441 449 L 433 450 L 433 448 L 430 451 L 423 452 L 403 452 L 380 448 L 378 449 L 376 456 L 374 456 L 375 458 L 369 468 L 367 467 L 365 464 L 368 452 L 370 452 L 368 448 L 366 453 L 362 459 L 358 463 L 354 465 L 352 470 L 355 476 L 357 477 L 361 477 L 363 479 L 361 482 L 358 483 Z M 399 472 L 397 474 L 398 475 L 393 477 L 393 479 L 388 482 L 383 482 L 383 484 L 368 492 L 366 492 L 361 495 L 358 492 L 361 495 L 358 496 L 358 503 L 360 503 L 380 496 L 381 493 L 385 491 L 390 486 L 393 484 L 394 485 L 396 483 L 395 481 L 399 479 Z M 440 457 L 435 459 L 432 465 L 434 470 L 440 473 L 445 471 L 448 465 L 446 460 Z" />
+                <circle class="tribal-joint-dot" cx="440" cy="465" r="3.5" />
+                <g id="tribal_L3_s2" data-rest="0" style="transform-origin: 360px 470px;">
+                  <path class="tribal-chitin" d="M 366 452 L 362 459 L 358 463 L 355 464 L 352 467 L 353 469 L 345 474 L 343 478 L 331 485 L 329 483 L 331 485 L 328 487 L 327 486 L 324 489 L 314 493 L 311 492 L 311 494 L 298 498 L 294 498 L 290 500 L 283 501 L 282 498 L 280 499 L 280 514 L 277 520 L 280 526 L 280 572 L 282 566 L 289 552 L 296 542 L 297 543 L 299 541 L 299 538 L 305 534 L 304 532 L 312 524 L 314 526 L 312 524 L 322 516 L 331 511 L 345 508 L 364 501 L 366 501 L 366 492 L 361 495 L 358 492 L 361 495 L 354 498 L 348 499 L 342 498 L 345 494 L 350 491 L 351 486 L 356 479 L 359 477 L 361 477 L 363 479 L 361 482 L 358 483 L 357 487 L 353 491 L 352 489 L 349 495 L 347 495 L 351 496 L 351 494 L 353 493 L 355 495 L 357 494 L 355 495 L 353 493 L 365 485 L 366 474 L 368 470 L 365 464 Z" />
+                  <circle class="tribal-joint-dot" cx="360" cy="470" r="3.5" />
+                  <g id="tribal_L3_s3" data-rest="0" style="transform-origin: 285px 520px;">
+                    <path class="tribal-chitin" d="M 279 465 L 277 467 L 277 469 L 275 469 L 276 471 L 271 480 L 269 487 L 267 488 L 268 490 L 260 511 L 254 534 L 248 572 L 246 602 L 246 651 L 248 675 L 250 680 L 251 689 L 260 717 L 261 715 L 265 723 L 268 726 L 266 719 L 262 690 L 261 664 L 263 634 L 265 632 L 264 627 L 267 611 L 272 592 L 275 584 L 277 584 L 276 580 L 281 568 L 288 555 L 289 526 L 291 525 L 293 520 L 291 515 L 289 514 L 288 500 L 283 501 L 282 498 L 280 499 L 278 496 L 277 492 L 277 475 Z" />
+                    <circle class="tribal-joint-dot" cx="285" cy="520" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === RIGHT LEG 3 (Lower-Lateral Right) === -->
+              <g id="tribal_R3_s1" data-rest="0" style="transform-origin: 518px 465px;">
+                <path class="tribal-chitin" d="M 600.0 489.0 L 597.0 488.0 L 585.0 479.0 L 583.0 481.0 L 585.0 479.0 L 574.0 471.0 L 567.0 470.0 L 569.0 469.0 L 566.0 467.0 L 562.0 467.0 L 562.0 465.0 L 551.0 461.0 L 525.0 457.0 L 520.0 454.0 L 517.0 451.0 L 517.0 449.0 L 525.0 450.0 L 525.0 448.0 L 528.0 451.0 L 535.0 452.0 L 555.0 452.0 L 578.0 448.0 L 580.0 449.0 L 582.0 456.0 L 584.0 456.0 L 583.0 458.0 L 589.0 468.0 L 591.0 467.0 L 593.0 464.0 L 590.0 452.0 L 588.0 452.0 L 590.0 448.0 L 592.0 453.0 L 596.0 459.0 L 600.0 463.0 L 604.0 465.0 L 606.0 470.0 L 603.0 476.0 L 601.0 477.0 L 597.0 477.0 L 595.0 479.0 L 597.0 482.0 L 600.0 483.0 Z M 559.0 472.0 L 561.0 474.0 L 560.0 475.0 L 565.0 477.0 L 565.0 479.0 L 570.0 482.0 L 575.0 482.0 L 575.0 484.0 L 590.0 492.0 L 592.0 492.0 L 597.0 495.0 L 600.0 492.0 L 597.0 495.0 L 600.0 496.0 L 600.0 503.0 L 598.0 503.0 L 578.0 496.0 L 577.0 493.0 L 573.0 491.0 L 568.0 486.0 L 565.0 484.0 L 564.0 485.0 L 562.0 483.0 L 563.0 481.0 L 559.0 479.0 Z M 518.0 457.0 L 523.0 459.0 L 526.0 465.0 L 524.0 470.0 L 518.0 473.0 L 513.0 471.0 L 510.0 465.0 L 512.0 460.0 Z" />
+                <circle class="tribal-joint-dot" cx="518" cy="465" r="3.5" />
+                <g id="tribal_R3_s2" data-rest="0" style="transform-origin: 598px 470px;">
+                  <path class="tribal-chitin" d="M 592.0 452.0 L 596.0 459.0 L 600.0 463.0 L 603.0 464.0 L 606.0 467.0 L 605.0 469.0 L 613.0 474.0 L 615.0 478.0 L 627.0 485.0 L 629.0 483.0 L 627.0 485.0 L 630.0 487.0 L 631.0 486.0 L 634.0 489.0 L 644.0 493.0 L 647.0 492.0 L 647.0 494.0 L 660.0 498.0 L 664.0 498.0 L 668.0 500.0 L 675.0 501.0 L 676.0 498.0 L 678.0 499.0 L 678.0 514.0 L 681.0 520.0 L 678.0 526.0 L 678.0 572.0 L 676.0 566.0 L 669.0 552.0 L 662.0 542.0 L 661.0 543.0 L 659.0 541.0 L 659.0 538.0 L 653.0 534.0 L 654.0 532.0 L 646.0 524.0 L 644.0 526.0 L 646.0 524.0 L 636.0 516.0 L 627.0 511.0 L 613.0 508.0 L 594.0 501.0 L 592.0 501.0 L 592.0 492.0 L 597.0 495.0 L 600.0 492.0 L 597.0 495.0 L 604.0 498.0 L 610.0 499.0 L 616.0 498.0 L 613.0 494.0 L 608.0 491.0 L 607.0 486.0 L 602.0 479.0 L 599.0 477.0 L 597.0 477.0 L 595.0 479.0 L 597.0 482.0 L 600.0 483.0 L 601.0 487.0 L 605.0 491.0 L 606.0 489.0 L 609.0 495.0 L 611.0 495.0 L 607.0 496.0 L 607.0 494.0 L 605.0 493.0 L 603.0 495.0 L 601.0 494.0 L 603.0 495.0 L 605.0 493.0 L 593.0 485.0 L 592.0 474.0 L 590.0 470.0 L 593.0 464.0 Z" />
+                  <circle class="tribal-joint-dot" cx="598" cy="470" r="3.5" />
+                  <g id="tribal_R3_s3" data-rest="0" style="transform-origin: 673px 520px;">
+                    <path class="tribal-chitin" d="M 679.0 465.0 L 681.0 467.0 L 681.0 469.0 L 683.0 469.0 L 682.0 471.0 L 687.0 480.0 L 689.0 487.0 L 691.0 488.0 L 690.0 490.0 L 698.0 511.0 L 704.0 534.0 L 710.0 572.0 L 712.0 602.0 L 712.0 651.0 L 710.0 675.0 L 708.0 680.0 L 707.0 689.0 L 698.0 717.0 L 697.0 715.0 L 693.0 723.0 L 690.0 726.0 L 692.0 719.0 L 696.0 690.0 L 697.0 664.0 L 695.0 634.0 L 693.0 632.0 L 694.0 627.0 L 691.0 611.0 L 686.0 592.0 L 683.0 584.0 L 681.0 584.0 L 682.0 580.0 L 677.0 568.0 L 670.0 555.0 L 669.0 526.0 L 667.0 525.0 L 665.0 520.0 L 667.0 515.0 L 669.0 514.0 L 670.0 500.0 L 675.0 501.0 L 676.0 498.0 L 678.0 499.0 L 680.0 496.0 L 681.0 492.0 L 681.0 475.0 Z" />
+                    <circle class="tribal-joint-dot" cx="673" cy="520" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === LEFT LEG 4 (Rear Left) === -->
+              <g id="tribal_L4_s1" data-rest="0" style="transform-origin: 440px 525px;">
+                <path class="tribal-chitin" d="M 440 474 L 437 478 L 436 481 L 432 485 L 431 485 L 427 489 L 425 487 L 427 489 L 424 491 L 421 489 L 424 491 L 421 491 L 419 495 L 413 499 L 387 510 L 383 510 L 381 512 L 375 513 L 373 515 L 373 518 L 371 521 L 367 538 L 366 546 L 366 564 L 375 564 L 374 562 L 378 556 L 380 556 L 378 555 L 381 553 L 381 551 L 383 549 L 385 550 L 388 547 L 384 548 L 385 546 L 388 545 L 388 543 L 403 531 L 406 534 L 403 531 L 407 529 L 414 520 L 414 523 L 418 518 L 416 517 L 422 514 L 421 511 L 424 510 L 425 507 L 427 510 L 429 508 L 427 510 L 427 507 L 425 506 L 428 503 L 429 505 L 428 502 L 431 499 L 433 495 L 436 494 L 435 492 L 437 490 L 437 488 L 439 486 L 440 488 L 441 486 L 440 482 L 442 477 Z M 404 537 L 401 536 L 400 539 L 397 539 L 396 542 L 393 542 L 394 544 L 388 550 L 385 555 L 383 557 L 382 555 L 383 557 L 382 559 L 380 559 L 381 561 L 379 564 L 388 564 L 392 567 L 395 568 L 401 565 L 403 560 L 402 557 L 400 554 L 396 552 L 401 544 L 400 543 Z M 355 523 L 351 531 L 344 553 L 344 557 L 341 560 L 343 561 L 342 564 L 355 564 L 354 531 L 355 530 Z M 440 517 L 435 519 L 432 525 L 434 530 L 440 533 L 445 531 L 448 525 L 446 520 Z" />
+                <circle class="tribal-joint-dot" cx="440" cy="525" r="3.5" />
+                <g id="tribal_L4_s2" data-rest="0" style="transform-origin: 395px 560px;">
+                  <path class="tribal-chitin" d="M 400 554 L 395 552 L 392 553 L 388 556 L 382 556 L 382 558 L 380 559 L 381 561 L 376 569 L 374 569 L 375 571 L 368 582 L 368 584 L 365 585 L 366 587 L 362 594 L 357 576 L 355 564 L 355 556 L 344 556 L 341 560 L 342 562 L 337 592 L 335 621 L 337 645 L 354 645 L 360 648 L 369 644 L 371 626 L 375 609 L 377 608 L 380 592 L 382 592 L 383 584 L 385 581 L 388 572 L 389 574 L 389 568 L 391 566 L 395 568 L 401 565 L 403 560 Z M 380 556 L 366 556 L 367 577 L 368 574 L 370 574 L 369 572 L 371 572 L 370 570 L 372 566 L 374 566 L 373 564 L 375 564 L 374 562 L 378 556 Z" />
+                  <circle class="tribal-joint-dot" cx="395" cy="560" r="3.5" />
+                  <g id="tribal_L4_s3" data-rest="0" style="transform-origin: 360px 640px;">
+                    <path class="tribal-chitin" d="M 336 638 L 338 658 L 341 671 L 348 691 L 347 693 L 349 694 L 349 697 L 351 700 L 350 703 L 352 703 L 354 711 L 357 717 L 358 725 L 360 725 L 359 727 L 361 728 L 366 741 L 366 744 L 368 746 L 370 753 L 372 755 L 371 758 L 374 760 L 373 764 L 374 762 L 384 782 L 387 786 L 387 790 L 389 790 L 403 813 L 401 815 L 403 813 L 408 822 L 410 822 L 412 827 L 416 830 L 417 833 L 423 837 L 421 839 L 423 837 L 424 840 L 427 841 L 424 842 L 427 841 L 429 846 L 431 844 L 433 846 L 432 849 L 434 847 L 442 853 L 444 851 L 441 850 L 439 848 L 437 844 L 439 844 L 437 841 L 437 844 L 434 841 L 431 831 L 430 834 L 428 830 L 423 824 L 423 819 L 422 821 L 420 818 L 422 817 L 420 818 L 406 792 L 397 770 L 398 767 L 396 767 L 386 738 L 380 716 L 377 698 L 377 668 L 379 652 L 376 651 L 375 654 L 369 658 L 369 638 L 365 634 L 360 632 L 355 634 L 352 638 Z" />
+                    <circle class="tribal-joint-dot" cx="360" cy="640" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+              <!-- === RIGHT LEG 4 (Rear Right) === -->
+              <g id="tribal_R4_s1" data-rest="0" style="transform-origin: 518px 525px;">
+                <path class="tribal-chitin" d="M 518.0 474.0 L 521.0 478.0 L 522.0 481.0 L 526.0 485.0 L 527.0 485.0 L 531.0 489.0 L 533.0 487.0 L 531.0 489.0 L 534.0 491.0 L 537.0 489.0 L 534.0 491.0 L 537.0 491.0 L 539.0 495.0 L 545.0 499.0 L 571.0 510.0 L 575.0 510.0 L 577.0 512.0 L 583.0 513.0 L 585.0 515.0 L 585.0 518.0 L 587.0 521.0 L 591.0 538.0 L 592.0 546.0 L 592.0 564.0 L 583.0 564.0 L 584.0 562.0 L 580.0 556.0 L 578.0 556.0 L 580.0 555.0 L 577.0 553.0 L 577.0 551.0 L 575.0 549.0 L 573.0 550.0 L 570.0 547.0 L 574.0 548.0 L 573.0 546.0 L 570.0 545.0 L 570.0 543.0 L 555.0 531.0 L 552.0 534.0 L 555.0 531.0 L 551.0 529.0 L 544.0 520.0 L 544.0 523.0 L 540.0 518.0 L 542.0 517.0 L 536.0 514.0 L 537.0 511.0 L 534.0 510.0 L 533.0 507.0 L 531.0 510.0 L 529.0 508.0 L 531.0 510.0 L 531.0 507.0 L 533.0 506.0 L 530.0 503.0 L 529.0 505.0 L 530.0 502.0 L 527.0 499.0 L 525.0 495.0 L 522.0 494.0 L 523.0 492.0 L 521.0 490.0 L 521.0 488.0 L 519.0 486.0 L 518.0 488.0 L 517.0 486.0 L 518.0 482.0 L 516.0 477.0 Z M 554.0 537.0 L 557.0 536.0 L 558.0 539.0 L 561.0 539.0 L 562.0 542.0 L 565.0 542.0 L 564.0 544.0 L 570.0 550.0 L 573.0 555.0 L 575.0 557.0 L 576.0 555.0 L 575.0 557.0 L 576.0 559.0 L 578.0 559.0 L 577.0 561.0 L 579.0 564.0 L 570.0 564.0 L 566.0 567.0 L 563.0 568.0 L 557.0 565.0 L 555.0 560.0 L 556.0 557.0 L 558.0 554.0 L 562.0 552.0 L 557.0 544.0 L 558.0 543.0 Z M 603.0 523.0 L 607.0 531.0 L 614.0 553.0 L 614.0 557.0 L 617.0 560.0 L 615.0 561.0 L 616.0 564.0 L 603.0 564.0 L 604.0 531.0 L 603.0 530.0 Z M 518.0 517.0 L 523.0 519.0 L 526.0 525.0 L 524.0 530.0 L 518.0 533.0 L 513.0 531.0 L 510.0 525.0 L 512.0 520.0 Z" />
+                <circle class="tribal-joint-dot" cx="518" cy="525" r="3.5" />
+                <g id="tribal_R4_s2" data-rest="0" style="transform-origin: 563px 560px;">
+                  <path class="tribal-chitin" d="M 558.0 554.0 L 563.0 552.0 L 566.0 553.0 L 570.0 556.0 L 576.0 556.0 L 576.0 558.0 L 578.0 559.0 L 577.0 561.0 L 582.0 569.0 L 584.0 569.0 L 583.0 571.0 L 590.0 582.0 L 590.0 584.0 L 593.0 585.0 L 592.0 587.0 L 596.0 594.0 L 601.0 576.0 L 603.0 564.0 L 603.0 556.0 L 614.0 556.0 L 617.0 560.0 L 616.0 562.0 L 621.0 592.0 L 623.0 621.0 L 621.0 645.0 L 604.0 645.0 L 598.0 648.0 L 589.0 644.0 L 587.0 626.0 L 583.0 609.0 L 581.0 608.0 L 578.0 592.0 L 576.0 592.0 L 575.0 584.0 L 573.0 581.0 L 570.0 572.0 L 569.0 574.0 L 569.0 568.0 L 567.0 566.0 L 563.0 568.0 L 557.0 565.0 L 555.0 560.0 Z M 578.0 556.0 L 592.0 556.0 L 591.0 577.0 L 590.0 574.0 L 588.0 574.0 L 589.0 572.0 L 587.0 572.0 L 588.0 570.0 L 586.0 566.0 L 584.0 566.0 L 585.0 564.0 L 583.0 564.0 L 584.0 562.0 L 580.0 556.0 Z" />
+                  <circle class="tribal-joint-dot" cx="563" cy="560" r="3.5" />
+                  <g id="tribal_R4_s3" data-rest="0" style="transform-origin: 598px 640px;">
+                    <path class="tribal-chitin" d="M 622.0 638.0 L 620.0 658.0 L 617.0 671.0 L 610.0 691.0 L 611.0 693.0 L 609.0 694.0 L 609.0 697.0 L 607.0 700.0 L 608.0 703.0 L 606.0 703.0 L 604.0 711.0 L 601.0 717.0 L 600.0 725.0 L 598.0 725.0 L 599.0 727.0 L 597.0 728.0 L 592.0 741.0 L 592.0 744.0 L 590.0 746.0 L 588.0 753.0 L 586.0 755.0 L 587.0 758.0 L 584.0 760.0 L 585.0 764.0 L 584.0 762.0 L 574.0 782.0 L 571.0 786.0 L 571.0 790.0 L 569.0 790.0 L 555.0 813.0 L 557.0 815.0 L 555.0 813.0 L 550.0 822.0 L 548.0 822.0 L 546.0 827.0 L 542.0 830.0 L 541.0 833.0 L 535.0 837.0 L 537.0 839.0 L 535.0 837.0 L 534.0 840.0 L 531.0 841.0 L 534.0 842.0 L 531.0 841.0 L 529.0 846.0 L 527.0 844.0 L 525.0 846.0 L 526.0 849.0 L 524.0 847.0 L 516.0 853.0 L 514.0 851.0 L 517.0 850.0 L 519.0 848.0 L 521.0 844.0 L 519.0 844.0 L 521.0 841.0 L 521.0 844.0 L 524.0 841.0 L 527.0 831.0 L 528.0 834.0 L 530.0 830.0 L 535.0 824.0 L 535.0 819.0 L 536.0 821.0 L 538.0 818.0 L 536.0 817.0 L 538.0 818.0 L 552.0 792.0 L 561.0 770.0 L 560.0 767.0 L 562.0 767.0 L 572.0 738.0 L 578.0 716.0 L 581.0 698.0 L 581.0 668.0 L 579.0 652.0 L 582.0 651.0 L 583.0 654.0 L 589.0 658.0 L 589.0 638.0 L 593.0 634.0 L 598.0 632.0 L 603.0 634.0 L 606.0 638.0 Z" />
+                    <circle class="tribal-joint-dot" cx="598" cy="640" r="3.5" />
+                  </g>
+                </g>
+              </g>
+
+            </g> <!-- End Legs Group -->
+
+            <!-- === BODY CORE (Cephalothorax & Gradient Neon Abdomen) === -->
+            <g id="tribal-body-core" style="transform-origin: 479px 500px; will-change: transform;">
+              <image href="assets/tribal_spider/body.png" x="400" y="343" width="161" height="329" />
+              <!-- Chelicerae Fangs Snapper (Left & Right) -->
+              <g id="tribal_fang_l" style="transform-origin: 470px 350px;">
+                <polygon points="466,350 472,342 470,356" fill="#00f2fe" opacity="0.85" filter="url(#cyan-glow)" />
+              </g>
+              <g id="tribal_fang_r" style="transform-origin: 488px 350px;">
+                <polygon points="492,350 486,342 488,356" fill="#00f2fe" opacity="0.85" filter="url(#cyan-glow)" />
+              </g>
+              <!-- Silk Nozzle at Head Top -->
+              <circle id="silk-nozzle" cx="479" cy="342" r="3" fill="#00f2fe" filter="url(#cyan-glow)" />
+            </g>
+
+          </g> <!-- End Master Group -->
+        </svg>
+      </div>
+
+      <!-- Canvas Navigation Controls -->
+      <div class="canvas-controls">
+        <button class="ctrl-btn" onclick="zoomIn()" title="Phóng to">＋</button>
+        <button class="ctrl-btn" onclick="zoomOut()" title="Thu nhỏ">－</button>
+        <button class="ctrl-btn" onclick="resetZoom()" title="Đặt lại góc nhìn">⟲</button>
+        <button class="ctrl-btn" onclick="toggleJointDots()" title="Bật/Tắt điểm chốt khớp">🔴</button>
+        <button class="ctrl-btn" onclick="toggleAura()" title="Bật/Tắt vầng hào quang">🔮</button>
+        <button class="ctrl-btn" onclick="toggleBgMode()" title="Chuyển nền Sáng/Tối">🌓</button>
+      </div>
+    </div>
+
+    <!-- Right Controls Panel -->
+    <div class="controls-panel">
+      <!-- Presets Section -->
+      <div>
+        <div class="section-title">
+          <span>1. Chế Độ Cử Động (Gothic Kinematics)</span>
+          <span style="color: var(--accent-cyan);">60 FPS</span>
+        </div>
+        <div class="preset-grid">
+          <div class="preset-card active" id="preset-idle" onclick="setPreset('idle')">
+            <h4>🌿 Gothic Breathing</h4>
+            <p>Nhịp thở ma mị của bụng & co duỗi khẽ các gai nhọn</p>
+          </div>
+          <div class="preset-card" id="preset-walk" onclick="setPreset('walk')">
+            <h4>🏃 Tetrapod Prowl</h4>
+            <p>Bò săn mồi 4 thì liên hoàn nhấc gối mượt mà</p>
+          </div>
+          <div class="preset-card" id="preset-strike" onclick="setPreset('strike')">
+            <h4>⚡ Hunter Strike</h4>
+            <p>Giương dàn gươm gai nhọn đe dọa con mồi</p>
+          </div>
+          <div class="preset-card" id="preset-crouch" onclick="setPreset('crouch')">
+            <h4>🎯 Shadow Ambush</h4>
+            <p>Khựng lại nén mình bóng đêm, hào quang co thắt</p>
+          </div>
+          <div class="preset-card" id="preset-pounce" onclick="setPreset('pounce')">
+            <h4>💥 Shadow Pounce</h4>
+            <p>Bổ nhào vồ mồi cắm nanh gai thần tốc</p>
+          </div>
+          <div class="preset-card" id="preset-coil" onclick="setPreset('coil')">
+            <h4>🛡️ Shadow Coil</h4>
+            <p>Thu gọn các chân bảo vệ cơ thể phòng thủ</p>
+          </div>
+        </div>
+
+        <!-- FULL PREDATORY SEQUENCE CINEMATIC BUTTON -->
+        <div style="margin-top: 14px;">
+          <button class="action-btn" id="btn-tribal-hunt" style="width: 100%; padding: 12px; background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(168, 85, 247, 0.25)); border: 1px solid #ef4444;" onclick="runFullTribalHuntSequence()">
+            <span style="font-size: 13px;">🎬 CHUỖI SĂN MỒI MA MỊ (FULL GOTHIC HUNT)</span>
+          </button>
+          <div style="font-size: 10px; color: var(--text-muted); text-align: center; margin-top: 4px; font-family: monospace">
+            Bò rình rập ➔ Khựng lại nén lực ➔ Hào quang nhịp tim ➔ Vồ mồi ➔ Cắn nanh & Bắn tơ
+          </div>
+        </div>
+      </div>
+
+      <!-- Speed Slider -->
+      <div>
+        <div class="section-title">Tốc Độ Cử Động (Speed)</div>
+        <div class="slider-row">
+          <input type="range" id="speed-slider" min="0.2" max="3.0" step="0.1" value="1.0" oninput="updateSpeed(this.value)">
+          <span id="speed-val">1.0x</span>
+        </div>
+      </div>
+
+      <!-- Silk & Reset Actions -->
+      <div style="display: flex; gap: 10px;">
+        <button class="action-btn" onclick="fireGothicSilk()">
+          <span>⚡ BẮN TƠ GAI NEON</span>
+        </button>
+        <button class="action-btn" style="background: rgba(139, 92, 246, 0.2); border: 1px solid var(--border-color);" onclick="resetAllJoints()">
+          <span>⟲ Đặt Lại Khớp</span>
+        </button>
+      </div>
+
+      <!-- Optical Glow Themes -->
+      <div>
+        <div class="section-title">Màu Hào Quang Ma Mị (Aura FX)</div>
+        <div class="glow-theme-grid">
+          <div class="theme-pill active" id="theme-violet" onclick="setTheme('violet')">💜 VIOLET</div>
+          <div class="theme-pill" id="theme-cyan" onclick="setTheme('cyan')">💙 CYAN</div>
+          <div class="theme-pill" id="theme-crimson" onclick="setTheme('crimson')">❤️ CRIMSON</div>
+          <div class="theme-pill" id="theme-emerald" onclick="setTheme('emerald')">💚 EMERALD</div>
+        </div>
+      </div>
+
+      <!-- 24 Manual Joints Sliders -->
+      <div>
+        <div class="section-title">
+          <span>2. Điều Khiển Từng Khớp Thủ Công</span>
+          <span style="color: var(--accent-neon);">24 JOINTS</span>
+        </div>
+        <div class="joints-list" id="joints-container">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --- KINEMATICS ENGINE STATE ---
+    let currentPreset = 'idle';
+    let animSpeed = 1.0;
+    let animRunning = true;
+    let currentZoom = 1.0;
+    let panX = 0, panY = 0;
+    let isDragging = false, startX = 0, startY = 0;
+    let showJoints = false;
+    let showAura = true;
+
+    // Joint Angle Values
+    const joints = {
+      L1_s1: 0, L1_s2: 0, L1_s3: 0,
+      R1_s1: 0, R1_s2: 0, R1_s3: 0,
+      L2_s1: 0, L2_s2: 0, L2_s3: 0,
+      R2_s1: 0, R2_s2: 0, R2_s3: 0,
+      L3_s1: 0, L3_s2: 0, L3_s3: 0,
+      R3_s1: 0, R3_s2: 0, R3_s3: 0,
+      L4_s1: 0, L4_s2: 0, L4_s3: 0,
+      R4_s1: 0, R4_s2: 0, R4_s3: 0
+    };
+
+    // --- POPULATE MANUAL SLIDERS ---
+    const legsMeta = [
+      { id: 'L1', name: 'Chân Trước Trái (L1)', color: '#38bdf8' },
+      { id: 'R1', name: 'Chân Trước Phải (R1)', color: '#38bdf8' },
+      { id: 'L2', name: 'Chân Giữa-Trên Trái (L2)', color: '#c084fc' },
+      { id: 'R2', name: 'Chân Giữa-Trên Phải (R2)', color: '#c084fc' },
+      { id: 'L3', name: 'Chân Giữa-Dưới Trái (L3)', color: '#f472b6' },
+      { id: 'R3', name: 'Chân Giữa-Dưới Phải (R3)', color: '#f472b6' },
+      { id: 'L4', name: 'Chân Sau Trái (L4)', color: '#a78bfa' },
+      { id: 'R4', name: 'Chân Sau Phải (R4)', color: '#a78bfa' }
+    ];
+
+    function buildJointSliders() {
+      const container = document.getElementById('joints-container');
+      container.innerHTML = '';
+
+      legsMeta.forEach(leg => {
+        const acc = document.createElement('div');
+        acc.className = 'leg-accordion';
+        acc.innerHTML = `
+          <div class="leg-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
+            <span style="color: ${leg.color}">🗡️ ${leg.name}</span>
+            <span>▼</span>
+          </div>
+          <div class="leg-body">
+            <div class="joint-ctrl">
+              <span class="joint-label">Gốc s1</span>
+              <input type="range" min="-45" max="45" value="0" id="slider_${leg.id}_s1" oninput="setManualJoint('${leg.id}_s1', this.value)">
+              <span class="joint-val" id="val_${leg.id}_s1">0°</span>
+            </div>
+            <div class="joint-ctrl">
+              <span class="joint-label">Gối s2</span>
+              <input type="range" min="-45" max="45" value="0" id="slider_${leg.id}_s2" oninput="setManualJoint('${leg.id}_s2', this.value)">
+              <span class="joint-val" id="val_${leg.id}_s2">0°</span>
+            </div>
+            <div class="joint-ctrl">
+              <span class="joint-label">Móng s3</span>
+              <input type="range" min="-45" max="45" value="0" id="slider_${leg.id}_s3" oninput="setManualJoint('${leg.id}_s3', this.value)">
+              <span class="joint-val" id="val_${leg.id}_s3">0°</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(acc);
+      });
+    }
+
+    function setManualJoint(jointKey, val) {
+      val = parseFloat(val);
+      joints[jointKey] = val;
+      document.getElementById(`val_${jointKey}`).innerText = `${Math.round(val)}°`;
+      applyJointTransform(jointKey, val);
+    }
+
+    function applyJointTransform(jointKey, angle) {
+      const el = document.getElementById(`tribal_${jointKey}`);
+      if (el) {
+        el.style.transform = `rotate(${angle}deg)`;
+      }
+    }
+
+    function resetAllJoints() {
+      Object.keys(joints).forEach(k => {
+        joints[k] = 0;
+        const slider = document.getElementById(`slider_${k}`);
+        if (slider) slider.value = 0;
+        const valTxt = document.getElementById(`val_${k}`);
+        if (valTxt) valTxt.innerText = '0°';
+        applyJointTransform(k, 0);
+      });
+      gsap.to('#tribal-spider-master', { x: 0, y: 0, rotation: 0, duration: 0.4 });
+      gsap.to('#tribal-body-core', { scaleY: 1, duration: 0.4 });
+    }
+
+    // --- KINEMATICS UPDATE LOOP (60-120 FPS) ---
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fpsTime = performance.now();
+
+    function updateKinematics(now) {
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      // FPS Counter
+      frameCount++;
+      if (now - fpsTime >= 500) {
+        const fps = (frameCount * 1000) / (now - fpsTime);
+        document.getElementById('fps-display').innerText = fps.toFixed(1);
+        frameCount = 0;
+        fpsTime = now;
+      }
+
+      if (animRunning) {
+        const t = (now * 0.003) * animSpeed;
+
+        if (currentPreset === 'walk') {
+          // --- 4-PHASE ARACHNID RIPPLE WAVE WALK ---
+          const phases = {
+            L4: 0.0,
+            L2: 0.5 * Math.PI,
+            L3: 1.0 * Math.PI,
+            L1: 1.5 * Math.PI,
+            R4: 1.0 * Math.PI,
+            R2: 1.5 * Math.PI,
+            R3: 0.0,
+            R1: 0.5 * Math.PI
+          };
+
+          const calcMotion = (phi) => {
+            const norm = ((phi % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            const isSwing = norm < Math.PI;
+            if (isSwing) {
+              return { swing: -Math.cos(norm), lift: Math.sin(norm), ext: Math.sin(norm) };
+            } else {
+              return { swing: Math.cos(norm - Math.PI), lift: 0, ext: -0.25 };
+            }
+          };
+
+          // Front Sickle Legs L1 & R1
+          const mL1 = calcMotion(t + phases.L1);
+          applyJointTransform('L1_s1', -16 * mL1.swing);
+          applyJointTransform('L1_s2', -22 * mL1.lift);
+          applyJointTransform('L1_s3', 14 * mL1.swing + 10 * mL1.lift);
+
+          const mR1 = calcMotion(t + phases.R1);
+          applyJointTransform('R1_s1', 16 * mR1.swing);
+          applyJointTransform('R1_s2', 22 * mR1.lift);
+          applyJointTransform('R1_s3', -14 * mR1.swing - 10 * mR1.lift);
+
+          // Middle Upper Legs L2 & R2
+          const mL2 = calcMotion(t + phases.L2);
+          applyJointTransform('L2_s1', -13 * mL2.swing);
+          applyJointTransform('L2_s2', -18 * mL2.lift);
+          applyJointTransform('L2_s3', 11 * mL2.swing + 7 * mL2.lift);
+
+          const mR2 = calcMotion(t + phases.R2);
+          applyJointTransform('R2_s1', 13 * mR2.swing);
+          applyJointTransform('R2_s2', 18 * mR2.lift);
+          applyJointTransform('R2_s3', -11 * mR2.swing - 7 * mR2.lift);
+
+          // Middle Lower Legs L3 & R3
+          const mL3 = calcMotion(t + phases.L3);
+          applyJointTransform('L3_s1', -14 * mL3.swing);
+          applyJointTransform('L3_s2', 18 * mL3.lift);
+          applyJointTransform('L3_s3', -12 * mL3.swing - 8 * mL3.lift);
+
+          const mR3 = calcMotion(t + phases.R3);
+          applyJointTransform('R3_s1', 14 * mR3.swing);
+          applyJointTransform('R3_s2', -18 * mR3.lift);
+          applyJointTransform('R3_s3', 12 * mR3.swing + 8 * mR3.lift);
+
+          // Rear Sickle Sweepers L4 & R4
+          const mL4 = calcMotion(t + phases.L4);
+          applyJointTransform('L4_s1', -18 * mL4.swing);
+          applyJointTransform('L4_s2', 24 * mL4.lift);
+          applyJointTransform('L4_s3', -15 * mL4.swing - 10 * mL4.lift);
+
+          const mR4 = calcMotion(t + phases.R4);
+          applyJointTransform('R4_s1', 18 * mR4.swing);
+          applyJointTransform('R4_s2', -24 * mR4.lift);
+          applyJointTransform('R4_s3', 15 * mR4.swing + 10 * mR4.lift);
+
+          // Body sway & heave centered at (479, 450)
+          const master = document.getElementById('tribal-spider-master');
+          if (master) {
+            const bobY = Math.sin(t * 2) * 2.2;
+            const roll = Math.sin(t) * 1.3;
+            master.setAttribute('transform', `translate(0, ${bobY}) rotate(${roll}, 479, 450)`);
+          }
+
+          // Abdomen breathing & Fangs twitch
+          const body = document.getElementById('tribal-body-core');
+          if (body) {
+            const scaleY = 1.0 + Math.sin(t * 1.5) * 0.035;
+            body.style.transform = `scaleY(${scaleY})`;
+          }
+          const fangL = document.getElementById('tribal_fang_l');
+          const fangR = document.getElementById('tribal_fang_r');
+          if (fangL && fangR) {
+            const fangAngle = Math.sin(t * 2) * 8;
+            fangL.style.transform = `rotate(${fangAngle}deg)`;
+            fangR.style.transform = `rotate(${-fangAngle}deg)`;
+          }
+        } else if (currentPreset === 'idle') {
+          // --- IDLE GOTHIC BREATHING ---
+          const pulse = Math.sin(t * 0.7);
+          const clawPulse = Math.sin(t * 0.5) * 3;
+
+          applyJointTransform('L1_s1', Math.sin(t * 0.5) * 2);
+          applyJointTransform('L1_s2', -pulse * 2.5);
+          applyJointTransform('L1_s3', clawPulse);
+
+          applyJointTransform('R1_s1', -Math.sin(t * 0.5) * 2);
+          applyJointTransform('R1_s2', pulse * 2.5);
+          applyJointTransform('R1_s3', -clawPulse);
+
+          applyJointTransform('L4_s1', -Math.sin(t * 0.6) * 2);
+          applyJointTransform('L4_s2', pulse * 3);
+          applyJointTransform('L4_s3', -clawPulse);
+
+          applyJointTransform('R4_s1', Math.sin(t * 0.6) * 2);
+          applyJointTransform('R4_s2', -pulse * 3);
+          applyJointTransform('R4_s3', clawPulse);
+
+          // Abdomen rhythmic deep breath
+          const body = document.getElementById('tribal-body-core');
+          if (body) {
+            const scaleY = 1.0 + pulse * 0.045;
+            body.style.transform = `scaleY(${scaleY})`;
+          }
+
+          // Aura pulse
+          const aura = document.getElementById('tribal-aura');
+          if (aura && showAura) {
+            aura.setAttribute('rx', 145 + pulse * 6);
+            aura.setAttribute('ry', 185 + pulse * 8);
+          }
+
+        } else if (currentPreset === 'strike') {
+          // --- HUNTER STRIKE PRESET ---
+          const tremor = Math.sin(t * 8) * 1.2;
+          applyJointTransform('L1_s1', -28 + tremor);
+          applyJointTransform('L1_s2', -34 + tremor);
+          applyJointTransform('L1_s3', 25 + tremor);
+
+          applyJointTransform('R1_s1', 28 - tremor);
+          applyJointTransform('R1_s2', 34 - tremor);
+          applyJointTransform('R1_s3', -25 - tremor);
+
+          applyJointTransform('L2_s1', -18);
+          applyJointTransform('L2_s2', -24);
+          applyJointTransform('L2_s3', 18);
+
+          applyJointTransform('R2_s1', 18);
+          applyJointTransform('R2_s2', 24);
+          applyJointTransform('R2_s3', -18);
+
+          // Rear legs braced for attack
+          applyJointTransform('L4_s1', 14);
+          applyJointTransform('L4_s2', 22);
+          applyJointTransform('L4_s3', -18);
+
+          applyJointTransform('R4_s1', -14);
+          applyJointTransform('R4_s2', -22);
+          applyJointTransform('R4_s3', 18);
+
+          const master = document.getElementById('tribal-spider-master');
+          if (master) {
+            master.setAttribute('transform', `translate(0, ${Math.sin(t * 3) * 1.5})`);
+          }
+
+        } else if (currentPreset === 'crouch') {
+          // --- SHADOW AMBUSH CROUCH PRESET (Khựng lại hạ thấp mình, run vi chấn rà mục tiêu) ---
+          const tremor = Math.sin(t * 12) * 1.8; // 12Hz micro-tremor
+          const heartbeat = Math.sin(t * 4) * 8; // Dồn dập nhịp tim
+
+          // Cặp chân trước L1 & R1 giương cao rà không khí
+          applyJointTransform('L1_s1', -25 + tremor);
+          applyJointTransform('L1_s2', -32 + tremor * 1.2);
+          applyJointTransform('L1_s3', 22 - tremor);
+
+          applyJointTransform('R1_s1', 25 - tremor);
+          applyJointTransform('R1_s2', 32 - tremor * 1.2);
+          applyJointTransform('R1_s3', -22 + tremor);
+
+          // Cặp chân giữa trụ kiềng
+          applyJointTransform('L2_s1', -14); applyJointTransform('L2_s2', -18); applyJointTransform('L2_s3', 14);
+          applyJointTransform('R2_s1', 14);  applyJointTransform('R2_s2', 18);  applyJointTransform('R2_s3', -14);
+          applyJointTransform('L3_s1', -16); applyJointTransform('L3_s2', 18);  applyJointTransform('L3_s3', -12);
+          applyJointTransform('R3_s1', 16);  applyJointTransform('R3_s2', -18); applyJointTransform('R3_s3', 12);
+
+          // Chân sau L4/R4 gập đùi sắc nét nén lực thế năng
+          applyJointTransform('L4_s1', 20);
+          applyJointTransform('L4_s2', 28);
+          applyJointTransform('L4_s3', -24);
+
+          applyJointTransform('R4_s1', -20);
+          applyJointTransform('R4_s2', -28);
+          applyJointTransform('R4_s3', 24);
+
+          // Thân hạ thấp sát mặt đất nén trọng tâm
+          const master = document.getElementById('tribal-spider-master');
+          if (master) {
+            master.setAttribute('transform', `translate(0, ${15 + Math.sin(t * 1.5) * 1.2})`);
+          }
+
+          // Hào quang co thắt rồi đập nhịp tim dồn dập
+          const aura = document.getElementById('tribal-aura');
+          if (aura && showAura) {
+            aura.setAttribute('rx', 135 + heartbeat);
+            aura.setAttribute('ry', 170 + heartbeat * 1.2);
+          }
+
+          // Răng nanh hé mở rung rình mồi
+          const fangL = document.getElementById('tribal_fang_l');
+          const fangR = document.getElementById('tribal_fang_r');
+          if (fangL && fangR) {
+            fangL.style.transform = `rotate(${12 + tremor * 2}deg)`;
+            fangR.style.transform = `rotate(${-12 - tremor * 2}deg)`;
+          }
+
+        } else if (currentPreset === 'pounce') {
+          // --- SHADOW POUNCE PRESET (Bổ nhào vồ mồi cắm nanh gai) ---
+          applyJointTransform('L1_s1', 14);
+          applyJointTransform('L1_s2', 28);
+          applyJointTransform('L1_s3', -22);
+
+          applyJointTransform('R1_s1', -14);
+          applyJointTransform('R1_s2', -28);
+          applyJointTransform('R1_s3', 22);
+
+          applyJointTransform('L4_s1', -22);
+          applyJointTransform('L4_s2', -26);
+          applyJointTransform('L4_s3', 20);
+
+          applyJointTransform('R4_s1', 22);
+          applyJointTransform('R4_s2', 26);
+          applyJointTransform('R4_s3', -20);
+
+          const master = document.getElementById('tribal-spider-master');
+          if (master) {
+            master.setAttribute('transform', 'translate(0, -28)');
+          }
+
+        } else if (currentPreset === 'coil') {
+          // --- SHADOW DEFENSIVE COIL ---
+          const breathe = Math.sin(t * 0.4) * 1.5;
+          applyJointTransform('L1_s1', 18 + breathe);
+          applyJointTransform('L1_s2', 25);
+          applyJointTransform('L1_s3', -20);
+
+          applyJointTransform('R1_s1', -18 - breathe);
+          applyJointTransform('R1_s2', -25);
+          applyJointTransform('R1_s3', 20);
+
+          applyJointTransform('L2_s1', 15);
+          applyJointTransform('L2_s2', 20);
+          applyJointTransform('L2_s3', -16);
+
+          applyJointTransform('R2_s1', -15);
+          applyJointTransform('R2_s2', -20);
+          applyJointTransform('R2_s3', 16);
+
+          applyJointTransform('L4_s1', -18);
+          applyJointTransform('L4_s2', -25);
+          applyJointTransform('L4_s3', 22);
+
+          applyJointTransform('R4_s1', 18);
+          applyJointTransform('R4_s2', 25);
+          applyJointTransform('R4_s3', -22);
+        }
+      }
+
+      requestAnimationFrame(updateKinematics);
+    }
+    requestAnimationFrame(updateKinematics);
+
+    // --- PRESETS SELECTION ---
+    function setPreset(presetName) {
+      currentPreset = presetName;
+      document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+      const activeCard = document.getElementById(`preset-${presetName}`);
+      if (activeCard) activeCard.classList.add('active');
+
+      if (presetName === 'strike') {
+        // Snap attack fangs
+        gsap.to('#tribal_fang_l', { rotation: 18, duration: 0.15, yoyo: true, repeat: 3 });
+        gsap.to('#tribal_fang_r', { rotation: -18, duration: 0.15, yoyo: true, repeat: 3 });
+      } else if (presetName === 'pounce') {
+        // Bổ nhào cắn dập
+        gsap.to('#tribal-spider-master', { y: -30, duration: 0.18, ease: "power4.out" });
+        gsap.to('#tribal_fang_l', { rotation: 24, duration: 0.1, yoyo: true, repeat: 5 });
+        gsap.to('#tribal_fang_r', { rotation: -24, duration: 0.1, yoyo: true, repeat: 5 });
+      }
+    }
+
+    // --- FULL GOTHIC HUNT CINEMATIC SEQUENCE (ĐỒNG BỘ ĐẦY ĐỦ: RÌNH RẬP NGẬP NGỪNG ➔ HÀO QUANG NHỊP TIM ➔ VỒ MỒI THẦN TỐC ➔ TIÊU DIỆT) ---
+    let tribalHuntRunning = false;
+    function runFullTribalHuntSequence() {
+      if (tribalHuntRunning) return;
+      tribalHuntRunning = true;
+
+      const btn = document.getElementById('btn-tribal-hunt');
+      const wisp = document.getElementById('hunt-wisp');
+      const wispStatus = document.getElementById('wisp-status-txt');
+      const panel = document.getElementById('canvas-panel');
+      const viewportContainer = document.getElementById('viewport-container');
+
+      // 1. Reset vị trí con mồi nếu trước đó bị ẩn
+      wisp.style.opacity = '1';
+      wisp.style.transform = 'scale(1)';
+      wispStatus.innerText = 'FOREST SPIRIT #01';
+      wispStatus.style.color = '#c084fc';
+
+      const panelRect = panel.getBoundingClientRect();
+      const wispRect = wisp.getBoundingClientRect();
+      const wispCenterX = wispRect.left - panelRect.left + wispRect.width / 2;
+      const wispCenterY = wispRect.top - panelRect.top + wispRect.height / 2;
+
+      // Pha 1: Bò rình rập ngập ngừng (Staccato Shadow Creep)
+      if (btn) btn.innerHTML = '<span>🕵️ PHA 1: RÓN RÉN TIẾP CẬN BÓNG ĐÊM (STACCATO CREEP)...</span>';
+      setPreset('walk');
+      animSpeed = 0.5;
+      document.getElementById('speed-slider').value = 0.5;
+      document.getElementById('speed-val').innerText = '0.5x';
+
+      // Bước 1: Nhện bò tiến lên 35px
+      gsap.to(viewportContainer, {
+        x: 35,
+        y: -40,
+        duration: 0.7,
+        ease: "power1.inOut",
+        onComplete: () => {
+          // Khựng lại 1: Đột ngột dừng nghe ngóng luồng khí
+          if (btn) btn.innerHTML = '<span>🛑 KHỰNG LẠI 1: BẤT ĐỘNG NGHE NGÓNG LINH HỒN...</span>';
+          setPreset('idle');
+
+          setTimeout(() => {
+            // Bước 2: Bò rón rén tiến tiếp 45px áp sát cự ly
+            if (btn) btn.innerHTML = '<span>🕵️ PHA 2: ÁP SÁT CỰ LY LINH HỒN...</span>';
+            setPreset('walk');
+            animSpeed = 0.45;
+
+            gsap.to(viewportContainer, {
+              x: 75,
+              y: -85,
+              duration: 0.75,
+              ease: "power1.inOut",
+              onComplete: () => {
+                // Pha 3: Vào thế nén lực phục kích (Ambush Crouch & Crimson Aura Heartbeat)
+                if (btn) btn.innerHTML = '<span>🎯 PHA 3: VÀO THẾ NÉN LỰC & HÀO QUANG NHỊP TIM DỒN DẬP!</span>';
+                setPreset('crouch');
+                setTheme('crimson'); // Hào quang chuyển đỏ rực như mắt dã thú
+                wispStatus.innerText = '⚠️ CURSED SPIRIT (LOCKED)';
+                wispStatus.style.color = '#ef4444';
+
+                setTimeout(() => {
+                  // Pha 4: CÚ VỒ MỒI THẦN TỐC (LETHAL SHADOW POUNCE)!
+                  if (btn) btn.innerHTML = '<span>💥 PHA 4: BỔ NHÀO VỒ MỒI! CẮN NANH & GHÌ MỤC TIÊU!</span>';
+                  setPreset('pounce');
+
+                  // Nhện lao vọt thẳng đè lên con mồi trong 0.18s
+                  gsap.to(viewportContainer, {
+                    x: wispCenterX - panelRect.width / 2 + 30,
+                    y: wispCenterY - panelRect.height / 2 + 100,
+                    duration: 0.18,
+                    ease: "power4.out",
+                    onComplete: () => {
+                      // Rung chấn màn hình (Viewport Screen Shake)
+                      gsap.fromTo(panel, 
+                        { x: -5, y: 5 }, 
+                        { x: 0, y: 0, duration: 0.35, ease: "rough({strength: 2, points: 10, template: power2.out})" }
+                      );
+
+                      // Tạo vòng sóng xung kích ma mị (Tribal Shockwave)
+                      const wave = document.createElement('div');
+                      wave.className = 'tribal-shockwave';
+                      wave.style.left = `${wispCenterX}px`;
+                      wave.style.top = `${wispCenterY}px`;
+                      panel.appendChild(wave);
+                      gsap.fromTo(wave, 
+                        { width: 10, height: 10, opacity: 1, borderWidth: 3 }, 
+                        { width: 140, height: 140, opacity: 0, borderWidth: 0.5, duration: 0.65, ease: "power2.out", onComplete: () => wave.remove() }
+                      );
+
+                      // Pha 5: Phóng tơ gai Spiked Neon trói chặt & Tiêu diệt con mồi
+                      if (btn) btn.innerHTML = '<span>⚡ PHA 5: PHÓNG TƠ GAI NEON TRÓI CHẶT & TIÊU DIỆT!</span>';
+                      fireGothicSilk(wispCenterX, wispCenterY);
+
+                      // Con mồi bị trói phát nổ biến thành khói tím
+                      gsap.to(wisp, {
+                        scale: 1.7,
+                        filter: "brightness(3)",
+                        duration: 0.15,
+                        yoyo: true,
+                        repeat: 1,
+                        onComplete: () => {
+                          gsap.to(wisp, { scale: 0, opacity: 0, duration: 0.45, ease: "back.in(2)" });
+                        }
+                      });
+
+                      setTimeout(() => {
+                        // Pha 6: Hồi vị chiến thắng ma mị
+                        if (btn) btn.innerHTML = '<span>🎬 CHUỖI SĂN MỒI MA MỊ (FULL GOTHIC HUNT)</span>';
+                        setTheme('violet');
+
+                        // Nhện lùi êm ái về vị trí cân bằng
+                        gsap.to(viewportContainer, {
+                          x: 0,
+                          y: 0,
+                          duration: 0.8,
+                          ease: "power2.out",
+                          onComplete: () => {
+                            setPreset('idle');
+                            animSpeed = 1.0;
+                            document.getElementById('speed-slider').value = 1.0;
+                            document.getElementById('speed-val').innerText = '1.0x';
+
+                            // Con mồi tái sinh ở vị trí ngẫu nhiên mới
+                            const randTop = 15 + Math.random() * 20;
+                            const randRight = 15 + Math.random() * 35;
+                            wisp.style.top = `${randTop}%`;
+                            wisp.style.right = `${randRight}%`;
+                            gsap.fromTo(wisp, { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)" });
+                            wispStatus.innerText = 'FOREST SPIRIT #01';
+                            wispStatus.style.color = '#c084fc';
+
+                            tribalHuntRunning = false;
+                          }
+                        });
+                      }, 1000);
+                    }
+                  });
+                }, 900);
+              }
+            });
+          }, 450);
+        }
+      });
+    }
+
+    function updateSpeed(val) {
+      animSpeed = parseFloat(val);
+      document.getElementById('speed-val').innerText = `${animSpeed.toFixed(1)}x`;
+    }
+
+    // --- GOTHIC SILK FIRING FX ---
+    function fireGothicSilk(customEndX, customEndY) {
+      const canvas = document.getElementById('silk-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+
+      const stage = document.getElementById('tribal-svg-stage');
+      const rect = stage.getBoundingClientRect();
+      const parentRect = canvas.getBoundingClientRect();
+
+      // Start at head fangs
+      const startX = rect.left + rect.width * (479 - 200) / 560 - parentRect.left;
+      const startY = rect.top + rect.height * (342 - 20) / 860 - parentRect.top;
+
+      // Target top-right or custom target
+      const endX = customEndX !== undefined ? customEndX : (startX + 320);
+      const endY = customEndY !== undefined ? customEndY : (startY - 260);
+
+      // Flash recoil on front legs
+      gsap.to(['#tribal_L1_s2', '#tribal_R1_s2'], {
+        rotation: '-=15',
+        duration: 0.1,
+        yoyo: true,
+        repeat: 1
+      });
+
+      // Draw spiked neon filament
+      let progress = 0;
+      const startTime = performance.now();
+      const duration = 500;
+
+      function renderSilk(now) {
+        const elapsed = now - startTime;
+        progress = Math.min(1, elapsed / duration);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const curX = startX + (endX - startX) * progress;
+        const curY = startY + (endY - startY) * progress;
+
+        // Neon Glow Beam
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = 15;
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2.5;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        // Bezier arch
+        const midX = (startX + curX) / 2 + 30;
+        const midY = (startY + curY) / 2 - 40;
+        ctx.quadraticCurveTo(midX, midY, curX, curY);
+        ctx.stroke();
+
+        // Spikes along silk
+        if (progress > 0.3) {
+          ctx.strokeStyle = '#06b6d4';
+          ctx.lineWidth = 1.2;
+          for (let i = 0.2; i <= progress; i += 0.15) {
+            const px = startX + (endX - startX) * i;
+            const py = startY + (endY - startY) * i;
+            ctx.beginPath();
+            ctx.moveTo(px - 6, py - 4);
+            ctx.lineTo(px + 6, py + 4);
+            ctx.stroke();
+          }
+        }
+
+        if (progress < 1) {
+          requestAnimationFrame(renderSilk);
+        } else {
+          // Fade out
+          gsap.to(canvas, {
+            opacity: 0,
+            duration: 0.6,
+            onComplete: () => {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              canvas.style.opacity = 1;
+            }
+          });
+        }
+      }
+      requestAnimationFrame(renderSilk);
+    }
+
+    // --- GLOW THEME SETTINGS ---
+    function setTheme(theme) {
+      document.querySelectorAll('.theme-pill').forEach(p => p.classList.remove('active'));
+      const activePill = document.getElementById(`theme-${theme}`);
+      if (activePill) activePill.classList.add('active');
+
+      const aura = document.getElementById('tribal-aura');
+      if (!aura) return;
+
+      if (theme === 'violet') {
+        aura.setAttribute('fill', 'rgba(124, 58, 237, 0.18)');
+      } else if (theme === 'cyan') {
+        aura.setAttribute('fill', 'rgba(6, 182, 212, 0.22)');
+      } else if (theme === 'crimson') {
+        aura.setAttribute('fill', 'rgba(239, 68, 68, 0.22)');
+      } else if (theme === 'emerald') {
+        aura.setAttribute('fill', 'rgba(16, 185, 129, 0.22)');
+      }
+    }
+
+    // --- VIEWPORT CONTROLS ---
+    function zoomIn() {
+      currentZoom = Math.min(2.5, currentZoom + 0.15);
+      applyViewportTransform();
+    }
+    function zoomOut() {
+      currentZoom = Math.max(0.6, currentZoom - 0.15);
+      applyViewportTransform();
+    }
+    function resetZoom() {
+      currentZoom = 1.0;
+      panX = 0; panY = 0;
+      applyViewportTransform();
+    }
+    function applyViewportTransform() {
+      const stage = document.getElementById('tribal-svg-stage');
+      stage.style.transform = `translate(${panX}px, ${panY}px) scale(${currentZoom})`;
+    }
+
+    function toggleJointDots() {
+      showJoints = !showJoints;
+      document.getElementById('tribal-svg-stage').classList.toggle('show-joints', showJoints);
+    }
+
+    function toggleAura() {
+      showAura = !showAura;
+      const aura = document.getElementById('tribal-aura');
+      if (aura) aura.style.display = showAura ? 'block' : 'none';
+    }
+
+    // Drag to Pan
+    const vpContainer = document.getElementById('viewport-container');
+    vpContainer.addEventListener('mousedown', (e) => {
+      if (e.target.tagName !== 'BUTTON') {
+        isDragging = true;
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
+      }
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+        applyViewportTransform();
+      }
+    });
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    
+    let isLightBg = false;
+    function toggleBgMode() {
+      isLightBg = !isLightBg;
+      const panel = document.getElementById('canvas-panel');
+      if (isLightBg) {
+        panel.style.background = '#fbfaf6';
+        document.querySelector('.grid-overlay').style.opacity = '0.15';
+      } else {
+        panel.style.background = 'radial-gradient(circle at center, #170f2e 0%, #08060f 80%)';
+        document.querySelector('.grid-overlay').style.opacity = '1';
+      }
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      buildJointSliders();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phòng Thí Nghiệm Khớp Động Học Nhện Mecha CAD — 2D Skeletal Rigging Test</title>
+  
+  <!-- Google Fonts & GSAP CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0B0E14;
+      --panel-dark: #121722;
+      --border-dark: #232D42;
+      --text-white: #F1F5F9;
+      --text-dim: #94A3B8;
+      --accent-cyan: #00E5FF;
+      --accent-amber: #F59E0B;
+      --accent-red: #EF4444;
+      --accent-green: #10B981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-white);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Header Bar */
+    header {
+      background: var(--panel-dark);
+      border-bottom: 1px solid var(--border-dark);
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      font-size: 1.6rem;
+      color: var(--accent-cyan);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .header-pills {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-pill {
+      background: #1A2234;
+      border: 1px solid var(--border-dark);
+      color: var(--text-white);
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-pill:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+    }
+
+    .btn-pill.active {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* Main Workspace Layout */
+    .workspace {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 72px);
+    }
+
+    /* Left Stage Viewport (60%) */
+    .stage-container {
+      flex: 1.35;
+      background: radial-gradient(circle at center, #141B2D 0%, #0B0E14 75%);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-right: 1px solid var(--border-dark);
+    }
+
+    #stage-canvas-box {
+      width: 520px;
+      height: 924px;
+      position: relative;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #stage-canvas-box.flipped {
+      transform: rotate(180deg);
+    }
+
+    #mecha-cad-master-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 24px rgba(0, 229, 255, 0.12));
+    }
+
+    .stage-hud-badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(18, 23, 34, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-dark);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .hud-title {
+      color: var(--accent-cyan);
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    /* Right Controls Panel (40%) */
+    .controls-panel {
+      flex: 1;
+      background: var(--panel-dark);
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .panel-section {
+      background: #0E131C;
+      border: 1px solid var(--border-dark);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent-cyan);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Motion Preset Buttons */
+    .presets-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .btn-preset {
+      background: #171E2D;
+      border: 1px solid var(--border-dark);
+      color: var(--text-white);
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.25s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .btn-preset .preset-desc {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-weight: 400;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .btn-preset:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-preset.active {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.2);
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+    }
+
+    /* Kinematic Sliders */
+    .sliders-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .slider-label-box {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .slider-label-box .name {
+      color: var(--text-white);
+      font-weight: 600;
+    }
+
+    .slider-label-box .value {
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #1F283C;
+      border-radius: 4px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-cyan);
+      transition: transform 0.1s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Footer Telemetry */
+    .telemetry-bar {
+      margin-top: auto;
+      background: #080A0F;
+      border-top: 1px solid var(--border-dark);
+      padding: 10px 24px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .telemetry-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚙️</div>
+      <div>
+        <div class="brand-title">MECHA CAD 2D SKELETAL RIGGING LAB</div>
+        <div class="brand-subtitle">HIERARCHICAL KINEMATICS • 100% PHOTO FIDELITY • 60 FPS GSAP</div>
+      </div>
+    </div>
+
+    <div class="header-pills">
+      <button class="btn-pill" id="btn-toggle-pivots" onclick="togglePivots()">
+        <span>🎯</span>
+        <span id="text-pivots">Hiện Tâm Khớp (Pivots)</span>
+      </button>
+
+      <button class="btn-pill" id="btn-flip-dir" onclick="toggleFlipDirection()">
+        <span>🔄</span>
+        <span id="text-flip">Đảo Chiều Đầu (0° / 180°)</span>
+      </button>
+
+      <button class="btn-pill" onclick="resetAllJoints()">
+        <span>↺</span>
+        <span>Đặt Lại Ban Đầu</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Workspace -->
+  <div class="workspace">
+    
+    <!-- Stage Viewport -->
+    <div class="stage-container">
+      <div class="stage-hud-badge">
+        <div class="hud-title">MODEL: MK-VI REAPER CAD MASTER</div>
+        <div>VIEWBOX: 576 x 1024 (1:1 Ratio)</div>
+        <div>RIG HIERARCHY: 3-TIER TELESCOPIC KINEMATICS</div>
+        <div id="hud-active-anim" style="color: var(--accent-amber); margin-top: 4px;">CHẾ ĐỘ: ĐIỀU KHIỂN THỦ CÔNG</div>
+      </div>
+
+      <div id="stage-canvas-box">
+        <!-- Nhúng file SVG Master trực tiếp -->
+        <!-- Sẽ được tải động hoặc inline -->
+        <div id="svg-mount-point" style="width: 100%; height: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+
+      <!-- Section 1: Motion Presets (Chuyển Động Tự Động 60 FPS) -->
+      <div class="panel-section">
+        <div class="section-title">
+          <span>🎬 BỘ CHUYỂN ĐỘNG TỰ ĐỘNG (GSAP PRESETS)</span>
+        </div>
+        <div class="presets-grid">
+          <button class="btn-preset" id="preset-idle" onclick="runPreset('idle')">
+            <span>⚙️ Nhịp Thở Cơ Khí</span>
+            <span class="preset-desc">Piston vi rung + Nhấp nhô nhịp nhàng</span>
+          </button>
+
+          <button class="btn-preset" id="preset-crawl" onclick="runPreset('crawl')">
+            <span>🕷️ Dáng Bò Tetrapod</span>
+            <span class="preset-desc">6 chân bước so le sinh học 60 FPS</span>
+          </button>
+
+          <button class="btn-preset" id="preset-strike" onclick="runPreset('strike')">
+            <span>🗡️ Tư Thế Vồ Săn Mồi</span>
+            <span class="preset-desc">2 chi trước vươn cao, hạ thấp gầm</span>
+          </button>
+
+          <button class="btn-preset" id="preset-shock" onclick="runPreset('shock')">
+            <span>⚡ Nhún Giảm Xóc Piston</span>
+            <span class="preset-desc">Lò xo giảm chấn nhún nảy đàn hồi</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 2: Cặp Chân Piston Khổng Lồ L3 & R3 (Primary Hydraulic Giant Legs) -->
+      <div class="panel-section">
+        <div class="section-title">
+          <span>🦾 CHÂN PISTON KHỔNG LỒ (L3 & R3 - 3 TẦNG KHỚP)</span>
+        </div>
+        <div class="sliders-list">
+          <!-- Hông L3 -->
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Hông Trái L3 (Hip Pivot: 210, 340)</span>
+              <span class="value" id="val-hip-l3">0°</span>
+            </div>
+            <input type="range" id="slider-hip-l3" min="-30" max="30" value="0" oninput="updateJoint('hip-l3', this.value)">
+          </div>
+
+          <!-- Gối L3 -->
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Gối Piston Trái L3 (Knee Pivot: 135, 600)</span>
+              <span class="value" id="val-knee-l3">0°</span>
+            </div>
+            <input type="range" id="slider-knee-l3" min="-40" max="40" value="0" oninput="updateJoint('knee-l3', this.value)">
+          </div>
+
+          <!-- Vuốt L3 -->
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Cổ Chân Vuốt L3 (Claw Pivot: 125, 800)</span>
+              <span class="value" id="val-claw-l3">0°</span>
+            </div>
+            <input type="range" id="slider-claw-l3" min="-35" max="35" value="0" oninput="updateJoint('claw-l3', this.value)">
+          </div>
+
+          <!-- Hông R3 -->
+          <div class="slider-row" style="margin-top: 8px; border-top: 1px dashed #232D42; padding-top: 8px;">
+            <div class="slider-label-box">
+              <span class="name">Khớp Hông Phải R3 (Hip Pivot: 365, 340)</span>
+              <span class="value" id="val-hip-r3">0°</span>
+            </div>
+            <input type="range" id="slider-hip-r3" min="-30" max="30" value="0" oninput="updateJoint('hip-r3', this.value)">
+          </div>
+
+          <!-- Gối R3 -->
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Gối Piston Phải R3 (Knee Pivot: 440, 600)</span>
+              <span class="value" id="val-knee-r3">0°</span>
+            </div>
+            <input type="range" id="slider-knee-r3" min="-40" max="40" value="0" oninput="updateJoint('knee-r3', this.value)">
+          </div>
+
+          <!-- Vuốt R3 -->
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Cổ Chân Vuốt R3 (Claw Pivot: 450, 800)</span>
+              <span class="value" id="val-claw-r3">0°</span>
+            </div>
+            <input type="range" id="slider-claw-r3" min="-35" max="35" value="0" oninput="updateJoint('claw-r3', this.value)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Cặp Chân Săn Mồi Trước L1 & R1 (Top Raptor Stilts) -->
+      <div class="panel-section">
+        <div class="section-title">
+          <span>🗡️ CHÂN SĂN MỒI TRƯỚC (L1 & R1 - 2 TẦNG KHỚP)</span>
+        </div>
+        <div class="sliders-list">
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Hông Trái L1 (Pivot: 215, 180)</span>
+              <span class="value" id="val-hip-l1">0°</span>
+            </div>
+            <input type="range" id="slider-hip-l1" min="-35" max="35" value="0" oninput="updateJoint('hip-l1', this.value)">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Khuỷu Trái L1 (Pivot: 140, 170)</span>
+              <span class="value" id="val-knee-l1">0°</span>
+            </div>
+            <input type="range" id="slider-knee-l1" min="-45" max="45" value="0" oninput="updateJoint('knee-l1', this.value)">
+          </div>
+
+          <div class="slider-row" style="margin-top: 8px; border-top: 1px dashed #232D42; padding-top: 8px;">
+            <div class="slider-label-box">
+              <span class="name">Khớp Hông Phải R1 (Pivot: 360, 180)</span>
+              <span class="value" id="val-hip-r1">0°</span>
+            </div>
+            <input type="range" id="slider-hip-r1" min="-35" max="35" value="0" oninput="updateJoint('hip-r1', this.value)">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Khuỷu Phải R1 (Pivot: 435, 170)</span>
+              <span class="value" id="val-knee-r1">0°</span>
+            </div>
+            <input type="range" id="slider-knee-r1" min="-45" max="45" value="0" oninput="updateJoint('knee-r1', this.value)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Cặp Chân Ngang L2 & R2 (Lateral Struts) -->
+      <div class="panel-section">
+        <div class="section-title">
+          <span>📐 CHÂN NGANG VAI (L2 & R2 - 2 TẦNG KHỚP)</span>
+        </div>
+        <div class="sliders-list">
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Hông Trái L2 (Pivot: 195, 260)</span>
+              <span class="value" id="val-hip-l2">0°</span>
+            </div>
+            <input type="range" id="slider-hip-l2" min="-30" max="30" value="0" oninput="updateJoint('hip-l2', this.value)">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Gối Trái L2 (Pivot: 115, 280)</span>
+              <span class="value" id="val-knee-l2">0°</span>
+            </div>
+            <input type="range" id="slider-knee-l2" min="-40" max="40" value="0" oninput="updateJoint('knee-l2', this.value)">
+          </div>
+
+          <div class="slider-row" style="margin-top: 8px; border-top: 1px dashed #232D42; padding-top: 8px;">
+            <div class="slider-label-box">
+              <span class="name">Khớp Hông Phải R2 (Pivot: 380, 260)</span>
+              <span class="value" id="val-hip-r2">0°</span>
+            </div>
+            <input type="range" id="slider-hip-r2" min="-30" max="30" value="0" oninput="updateJoint('hip-r2', this.value)">
+          </div>
+          <div class="slider-row">
+            <div class="slider-label-box">
+              <span class="name">Khớp Gối Phải R2 (Pivot: 460, 280)</span>
+              <span class="value" id="val-knee-r2">0°</span>
+            </div>
+            <input type="range" id="slider-knee-r2" min="-40" max="40" value="0" oninput="updateJoint('knee-r2', this.value)">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Telemetry Bar -->
+  <div class="telemetry-bar">
+    <div class="telemetry-status">
+      <div class="status-dot"></div>
+      <span>KINEMATIC ENGINE: GSAP 3.12.5 • HARD INVARIANT 1 COMPLIANT (SVG 2D)</span>
+    </div>
+    <div>RESOLVED PIVOT TOLERANCE: &lt; 0.5px • RENDERING: HARDWARE GPU ACCELERATED</div>
+  </div>
+
+  <script>
+    let showPivots = false;
+    let isFlipped = false;
+    let activeTimeline = null;
+
+    // 1. Tải SVG Master vào khung mount
+    async function loadMasterSvg() {
+      try {
+        const resp = await fetch('assets/mecha_cad_master/mecha_cad_rig_master.svg');
+        const svgText = await resp.text();
+        document.getElementById('svg-mount-point').innerHTML = svgText;
+        console.log("Master SVG loaded successfully.");
+      } catch (err) {
+        console.error("Error loading SVG:", err);
+      }
+    }
+
+    // Cấu hình tâm xoay chính xác cho từng khớp
+    const jointConfigs = {
+      'hip-l3': { sel: '#rig-leg-l3', origin: '200px 390px' },
+      'knee-l3': { sel: '#rig-knee-l3', origin: '135px 660px' },
+      'claw-l3': { sel: '#rig-claw-l3', origin: '125px 825px' },
+      'hip-r3': { sel: '#rig-leg-r3', origin: '375px 390px' },
+      'knee-r3': { sel: '#rig-knee-r3', origin: '440px 660px' },
+      'claw-r3': { sel: '#rig-claw-r3', origin: '450px 825px' },
+
+      'hip-l1': { sel: '#rig-leg-l1', origin: '215px 180px' },
+      'knee-l1': { sel: '#rig-knee-l1', origin: '140px 170px' },
+      'hip-r1': { sel: '#rig-leg-r1', origin: '360px 180px' },
+      'knee-r1': { sel: '#rig-knee-r1', origin: '435px 170px' },
+
+      'hip-l2': { sel: '#rig-leg-l2', origin: '195px 260px' },
+      'knee-l2': { sel: '#rig-knee-l2', origin: '115px 280px' },
+      'hip-r2': { sel: '#rig-leg-r2', origin: '380px 260px' },
+      'knee-r2': { sel: '#rig-knee-r2', origin: '460px 280px' }
+    };
+
+    // 2. Cập nhật góc xoay thủ công từng khớp bằng slider
+    function updateJoint(jointName, deg) {
+      killActivePreset();
+      deg = parseFloat(deg);
+      document.getElementById(`val-${jointName}`).innerText = `${deg}°`;
+
+      const cfg = jointConfigs[jointName];
+      if (cfg) {
+        gsap.to(cfg.sel, { 
+          transformOrigin: cfg.origin, 
+          rotation: deg, 
+          duration: 0.15, 
+          ease: "power1.out" 
+        });
+      }
+    }
+
+    // 3. Bật/Tắt hiển thị tâm khớp (Pivot Visualizer)
+    function togglePivots() {
+      showPivots = !showPivots;
+      const pivotsLayer = document.getElementById('cad-pivots-layer');
+      const btn = document.getElementById('btn-toggle-pivots');
+      const text = document.getElementById('text-pivots');
+
+      if (pivotsLayer) {
+        pivotsLayer.style.display = showPivots ? 'block' : 'none';
+      }
+      btn.classList.toggle('active', showPivots);
+      text.innerText = showPivots ? 'Ẩn Tâm Khớp' : 'Hiện Tâm Khớp (Pivots)';
+    }
+
+    // 4. Đảo chiều hướng đầu (0° / 180°)
+    function toggleFlipDirection() {
+      isFlipped = !isFlipped;
+      const box = document.getElementById('stage-canvas-box');
+      const btn = document.getElementById('btn-flip-dir');
+      box.classList.toggle('flipped', isFlipped);
+      btn.classList.toggle('active', isFlipped);
+    }
+
+    // 5. Đặt lại tất cả các khớp về mặc định 0°
+    function resetAllJoints() {
+      killActivePreset();
+      document.querySelectorAll('input[type="range"]').forEach(input => {
+        input.value = 0;
+        const key = input.id.replace('slider-', '');
+        const valEl = document.getElementById(`val-${key}`);
+        if (valEl) valEl.innerText = "0°";
+      });
+
+      for (const [key, cfg] of Object.entries(jointConfigs)) {
+        gsap.to(cfg.sel, {
+          transformOrigin: cfg.origin,
+          rotation: 0,
+          duration: 0.4,
+          ease: "power2.out"
+        });
+      }
+      gsap.to('#rig-chassis-core', { y: 0, duration: 0.4 });
+      gsap.to('#stage-canvas-box .spider-eye', { fill: "#00E5FF", opacity: 1, duration: 0.3 });
+
+      document.getElementById('hud-active-anim').innerText = 'CHẾ ĐỘ: ĐÃ ĐẶT LẠI VỀ 0°';
+    }
+
+    // 6. Dừng timeline đang chạy khi can thiệp thủ công
+    function killActivePreset() {
+      if (activeTimeline) {
+        activeTimeline.kill();
+        activeTimeline = null;
+      }
+      document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+    }
+
+    // 7. CÁC MOTION PRESETS (CHUYỂN ĐỘNG TỰ ĐỘNG 60 FPS)
+    function runPreset(presetName) {
+      killActivePreset();
+      document.getElementById(`preset-${presetName}`).classList.add('active');
+      const hud = document.getElementById('hud-active-anim');
+
+      // PRESET 1: NHỊP THỞ CƠ KHÍ (IDLE HYDRAULIC BREATHING)
+      if (presetName === 'idle') {
+        hud.innerText = 'CHẾ ĐỘ: NHỊP THỞ CƠ KHÍ (60 FPS)';
+        activeTimeline = gsap.timeline({ repeat: -1, yoyo: true });
+
+        activeTimeline
+          .to('#rig-chassis-core', { y: -4, duration: 2.2, ease: "sine.inOut" }, 0)
+          .to('#rig-knee-l3', { transformOrigin: "135px 660px", rotation: 3.5, duration: 2.2, ease: "sine.inOut" }, 0)
+          .to('#rig-knee-r3', { transformOrigin: "440px 660px", rotation: -3.5, duration: 2.2, ease: "sine.inOut" }, 0)
+          .to('#rig-claw-l3', { transformOrigin: "125px 825px", rotation: -2, duration: 2.2, ease: "sine.inOut" }, 0)
+          .to('#rig-claw-r3', { transformOrigin: "450px 825px", rotation: 2, duration: 2.2, ease: "sine.inOut" }, 0)
+          .to('#rig-knee-l1', { transformOrigin: "140px 170px", rotation: -3, duration: 1.8, ease: "sine.inOut" }, 0.2)
+          .to('#rig-knee-r1', { transformOrigin: "435px 170px", rotation: 3, duration: 1.8, ease: "sine.inOut" }, 0.2)
+          .to('#stage-canvas-box .spider-eye', { opacity: 0.65, duration: 1.4, ease: "power1.inOut" }, 0);
+      }
+
+      // PRESET 2: DÁNG BÒ TETRAPOD GAIT (60 FPS WALK CYCLE)
+      else if (presetName === 'crawl') {
+        hud.innerText = 'CHẾ ĐỘ: DÁNG BÒ TETRAPOD 6 CHÂN (60 FPS)';
+        const half = 0.45;
+        activeTimeline = gsap.timeline({ repeat: -1 });
+
+        // Nhóm Chân Alpha (L1, R2, L3) so le Nhóm Beta (R1, L2, R3)
+        activeTimeline
+          // PHA 1: ALPHA SWING (Nhấc chân) & BETA STANCE (Miết đất)
+          .to('#rig-leg-l1', { transformOrigin: "215px 180px", rotation: 14, duration: half, ease: "power1.out" }, 0)
+          .to('#rig-knee-l1', { transformOrigin: "140px 170px", rotation: -18, duration: half, ease: "power1.out" }, 0)
+          .to('#rig-leg-r2', { transformOrigin: "380px 260px", rotation: 12, duration: half, ease: "power1.out" }, 0)
+          .to('#rig-knee-r2', { transformOrigin: "460px 280px", rotation: -14, duration: half, ease: "power1.out" }, 0)
+          .to('#rig-leg-l3', { transformOrigin: "200px 390px", rotation: -12, duration: half, ease: "power1.out" }, 0)
+          .to('#rig-knee-l3', { transformOrigin: "135px 660px", rotation: 16, duration: half, ease: "power1.out" }, 0)
+
+          .to('#rig-leg-r1', { transformOrigin: "360px 180px", rotation: -10, duration: half, ease: "power1.in" }, 0)
+          .to('#rig-knee-r1', { transformOrigin: "435px 170px", rotation: 8, duration: half, ease: "power1.in" }, 0)
+          .to('#rig-leg-l2', { transformOrigin: "195px 260px", rotation: -10, duration: half, ease: "power1.in" }, 0)
+          .to('#rig-knee-l2', { transformOrigin: "115px 280px", rotation: 8, duration: half, ease: "power1.in" }, 0)
+          .to('#rig-leg-r3', { transformOrigin: "375px 390px", rotation: 12, duration: half, ease: "power1.in" }, 0)
+          .to('#rig-knee-r3', { transformOrigin: "440px 660px", rotation: -8, duration: half, ease: "power1.in" }, 0)
+          .to('#rig-chassis-core', { y: 2, duration: half, ease: "sine.inOut" }, 0)
+
+          // PHA 2: ALPHA PLANT (Cắm đất) & BETA SWING (Nhấc chân)
+          .to('#rig-leg-l1', { transformOrigin: "215px 180px", rotation: -10, duration: half, ease: "power1.in" }, half)
+          .to('#rig-knee-l1', { transformOrigin: "140px 170px", rotation: 8, duration: half, ease: "power1.in" }, half)
+          .to('#rig-leg-r2', { transformOrigin: "380px 260px", rotation: -10, duration: half, ease: "power1.in" }, half)
+          .to('#rig-knee-r2', { transformOrigin: "460px 280px", rotation: 8, duration: half, ease: "power1.in" }, half)
+          .to('#rig-leg-l3', { transformOrigin: "200px 390px", rotation: 12, duration: half, ease: "power1.in" }, half)
+          .to('#rig-knee-l3', { transformOrigin: "135px 660px", rotation: -8, duration: half, ease: "power1.in" }, half)
+
+          .to('#rig-leg-r1', { transformOrigin: "360px 180px", rotation: 14, duration: half, ease: "power1.out" }, half)
+          .to('#rig-knee-r1', { transformOrigin: "435px 170px", rotation: -18, duration: half, ease: "power1.out" }, half)
+          .to('#rig-leg-l2', { transformOrigin: "195px 260px", rotation: 12, duration: half, ease: "power1.out" }, half)
+          .to('#rig-knee-l2', { transformOrigin: "115px 280px", rotation: -14, duration: half, ease: "power1.out" }, half)
+          .to('#rig-leg-r3', { transformOrigin: "375px 390px", rotation: -12, duration: half, ease: "power1.out" }, half)
+          .to('#rig-knee-r3', { transformOrigin: "440px 660px", rotation: 16, duration: half, ease: "power1.out" }, half)
+          .to('#rig-chassis-core', { y: -2, duration: half, ease: "sine.inOut" }, half);
+      }
+
+      // PRESET 3: TƯ THẾ VỒ SĂN MỒI (AGGRESSIVE STRIKE STANCE)
+      else if (presetName === 'strike') {
+        hud.innerText = 'CHẾ ĐỘ: TƯ THẾ VỒ SĂN MỒI (AGGRESSIVE STRIKE)';
+        activeTimeline = gsap.timeline({ repeat: -1, yoyo: true, repeatDelay: 0.6 });
+
+        activeTimeline
+          // Chuẩn bị: Co chân sau xuống, thân chúc xuống
+          .to('#rig-chassis-core', { y: 8, duration: 0.5, ease: "power2.in" })
+          .to('#rig-knee-l3', { transformOrigin: "135px 660px", rotation: 12, duration: 0.5, ease: "power2.in" }, 0)
+          .to('#rig-knee-r3', { transformOrigin: "440px 660px", rotation: -12, duration: 0.5, ease: "power2.in" }, 0)
+          // Bật vươn: 2 chi trước vung cao sắc lẹm vồ tới
+          .to('#rig-chassis-core', { y: -16, duration: 0.28, ease: "expo.out" })
+          .to('#rig-leg-l1', { transformOrigin: "215px 180px", rotation: -24, duration: 0.28, ease: "expo.out" }, "<")
+          .to('#rig-knee-l1', { transformOrigin: "140px 170px", rotation: -30, duration: 0.28, ease: "expo.out" }, "<")
+          .to('#rig-leg-r1', { transformOrigin: "360px 180px", rotation: 24, duration: 0.28, ease: "expo.out" }, "<")
+          .to('#rig-knee-r1', { transformOrigin: "435px 170px", rotation: 30, duration: 0.28, ease: "expo.out" }, "<")
+          .to('#stage-canvas-box .spider-eye', { fill: "#FF1744", duration: 0.15 }, "<");
+      }
+
+      // PRESET 4: NHÚN GIẢM XÓC PISTON (HYDRAULIC SHOCK TEST)
+      else if (presetName === 'shock') {
+        hud.innerText = 'CHẾ ĐỘ: NHÚN GIẢM XÓC PISTON (ELASTIC REBOUND)';
+        activeTimeline = gsap.timeline({ repeat: -1, repeatDelay: 1.2 });
+
+        activeTimeline
+          .fromTo('#rig-chassis-core', 
+            { y: -18 }, 
+            { y: 12, duration: 0.2, ease: "power2.in" }
+          )
+          .to('#rig-knee-l3', { transformOrigin: "135px 660px", rotation: 16, duration: 0.2, ease: "power2.in" }, 0)
+          .to('#rig-knee-r3', { transformOrigin: "440px 660px", rotation: -16, duration: 0.2, ease: "power2.in" }, 0)
+          .to('#rig-chassis-core', { y: 0, duration: 0.8, ease: "elastic.out(1.4, 0.28)" })
+          .to('#rig-knee-l3', { transformOrigin: "135px 660px", rotation: 0, duration: 0.8, ease: "elastic.out(1.4, 0.28)" }, "<")
+          .to('#rig-knee-r3', { transformOrigin: "440px 660px", rotation: 0, duration: 0.8, ease: "elastic.out(1.4, 0.28)" }, "<");
+      }
+    }
+
+    // Khởi tạo khi tải trang
+    window.addEventListener('DOMContentLoaded', () => {
+      loadMasterSvg();
+    });
+  </script>
+</body>
+</html>
