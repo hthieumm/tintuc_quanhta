@@ -15,7 +15,7 @@ import json
 import asyncio
 import time
 from datetime import datetime, timezone
-from typing import Literal, Optional, List, Dict, Any
+from typing import Literal, Optional, List, Dict, Any, Tuple
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, HTTPException, Query, Request, BackgroundTasks
@@ -155,80 +155,202 @@ async def count_articles_today() -> int:
             return int(row[0] or 0)
 
 
+# 1. BỘ TỪ KHÓA CHUYÊN SÂU 7 CHUYÊN MỤC (Đã loại bỏ các từ đơn đa nghĩa dễ bắt nhầm như "interest")
 _KEYWORD_CATEGORY_HINTS: List[tuple] = [
-    # Tiếng Việt - Kinh tế & Vĩ mô
-    ("lãi suất", "kinh_te"), ("lạm phát", "kinh_te"), ("tỷ giá", "vang"),
-    ("vàng", "vang"), ("sjc", "vang"), ("usd", "vang"),
-    ("cổ phiếu", "chung_khoan"), ("chứng khoán", "chung_khoan"),
-    ("vn-index", "chung_khoan"), ("thanh khoản", "chung_khoan"),
-    ("trái phiếu", "chung_khoan"), ("vinfast", "chung_khoan"),
-    ("doanh nghiệp", "kinh_te"), ("ngân hàng", "kinh_te"),
-    ("fed", "kinh_te"), ("bất động sản", "kinh_te"),
-    ("chiến sự", "quoc_te"), ("chiến tranh", "quoc_te"),
-    ("chính phủ", "chinh_tri"), ("quốc hội", "chinh_tri"),
-    # Tiếng Anh - Quốc tế & Vĩ mô
-    ("interest rate", "kinh_te"), ("interest", "kinh_te"), ("inflation", "kinh_te"),
-    ("federal reserve", "kinh_te"), ("central bank", "kinh_te"),
-    ("economy", "kinh_te"), ("economic", "kinh_te"), ("tariffs", "kinh_te"),
-    ("trade", "kinh_te"), ("gdp", "kinh_te"),
-    # Chứng khoán & Tài chính quốc tế
-    ("stocks", "chung_khoan"), ("stock", "chung_khoan"), ("markets", "chung_khoan"),
-    ("market", "chung_khoan"), ("equities", "chung_khoan"), ("bonds", "chung_khoan"),
-    ("treasury", "chung_khoan"), ("wall street", "chung_khoan"), ("nasdaq", "chung_khoan"),
-    # Vàng & Tiền tệ
-    ("gold", "vang"), ("dollar", "vang"), ("debased", "vang"),
-    # Crypto & Web3
-    ("crypto", "crypto"), ("bitcoin", "crypto"), ("btc", "crypto"),
-    # Dầu mỏ & Địa chính trị quốc tế
-    ("crude oil", "quoc_te"), ("brent", "quoc_te"), ("oil", "quoc_te"),
-    ("war", "quoc_te"), ("conflict", "quoc_te"), ("sanctions", "quoc_te"),
+    # --- VÀNG, TIỀN TỆ & NGOẠI HỐI (vang) ---
+    ("giá vàng", "vang"), ("vàng miếng", "vang"), ("vàng nhẫn", "vang"),
+    ("vàng sjc", "vang"), ("sjc", "vang"), ("pnj", "vang"), ("doji", "vang"),
+    ("kim loại quý", "vang"), ("tỷ giá", "vang"), ("ngoại hối", "vang"),
+    ("dự trữ ngoại hối", "vang"), ("usd", "vang"), ("vnd", "vang"),
+    ("gold price", "vang"), ("gold", "vang"), ("xau", "vang"), ("bullion", "vang"),
+    ("silver", "vang"), ("precious metal", "vang"), ("precious metals", "vang"),
+    ("dollar", "vang"), ("dxy", "vang"), ("greenback", "vang"), ("forex", "vang"),
+    ("currency", "vang"), ("currencies", "vang"), ("exchange rate", "vang"),
+    ("debased", "vang"), ("debasement", "vang"), ("safe-haven", "vang"), ("safe haven", "vang"),
+
+    # --- CHỨNG KHOÁN & TRÁI PHIẾU (chung_khoan) ---
+    ("chứng khoán", "chung_khoan"), ("cổ phiếu", "chung_khoan"), ("cổ tức", "chung_khoan"),
+    ("vn-index", "chung_khoan"), ("vnindex", "chung_khoan"), ("vn30", "chung_khoan"),
+    ("hose", "chung_khoan"), ("hnx", "chung_khoan"), ("upcom", "chung_khoan"),
+    ("thanh khoản", "chung_khoan"), ("khối ngoại", "chung_khoan"), ("tự doanh", "chung_khoan"),
+    ("trái phiếu", "chung_khoan"), ("lợi suất", "chung_khoan"), ("vốn hóa", "chung_khoan"),
+    ("vinfast", "chung_khoan"), ("ipo", "chung_khoan"),
+    ("stock market", "chung_khoan"), ("stocks", "chung_khoan"), ("equities", "chung_khoan"),
+    ("wall street", "chung_khoan"), ("nasdaq", "chung_khoan"), ("s&p 500", "chung_khoan"),
+    ("dow jones", "chung_khoan"), ("treasury", "chung_khoan"), ("treasuries", "chung_khoan"),
+    ("bond market", "chung_khoan"), ("bonds", "chung_khoan"), ("bond yield", "chung_khoan"),
+    ("yields", "chung_khoan"), ("short-sellers", "chung_khoan"), ("short sellers", "chung_khoan"),
+    ("hedge fund", "chung_khoan"), ("dividends", "chung_khoan"), ("shareholders", "chung_khoan"),
+    ("mergers", "chung_khoan"), ("acquisitions", "chung_khoan"), ("m&a", "chung_khoan"),
+
+    # --- KINH TẾ VĨ MÔ & NGÂN HÀNG (kinh_te) ---
+    ("lãi suất", "kinh_te"), ("lạm phát", "kinh_te"), ("giảm phát", "kinh_te"),
+    ("tăng trưởng", "kinh_te"), ("kinh tế", "kinh_te"), ("vĩ mô", "kinh_te"),
+    ("ngân hàng", "kinh_te"), ("tín dụng", "kinh_te"), ("nợ xấu", "kinh_te"),
+    ("nợ công", "kinh_te"), ("bất động sản", "kinh_te"), ("doanh nghiệp", "kinh_te"),
+    ("xuất khẩu", "kinh_te"), ("nhập khẩu", "kinh_te"), ("thương mại", "kinh_te"),
+    ("thuế quan", "kinh_te"), ("đầu tư công", "kinh_te"), ("giải ngân", "kinh_te"),
+    ("fdi", "kinh_te"), ("cpi", "kinh_te"), ("gdp", "kinh_te"), ("pmi", "kinh_te"),
+    ("fed", "kinh_te"), ("fomc", "kinh_te"), ("ecb", "kinh_te"), ("boj", "kinh_te"),
+    ("pboc", "kinh_te"), ("imf", "kinh_te"),
+    ("interest rate", "kinh_te"), ("interest rates", "kinh_te"), ("rate cut", "kinh_te"),
+    ("rate hike", "kinh_te"), ("inflation", "kinh_te"), ("deflation", "kinh_te"),
+    ("recession", "kinh_te"), ("stagflation", "kinh_te"), ("federal reserve", "kinh_te"),
+    ("central bank", "kinh_te"), ("central banks", "kinh_te"), ("powell", "kinh_te"),
+    ("bessent", "kinh_te"), ("economy", "kinh_te"), ("economic", "kinh_te"),
+    ("macroeconomic", "kinh_te"), ("tariffs", "kinh_te"), ("tariff", "kinh_te"),
+    ("trade war", "kinh_te"), ("free trade", "kinh_te"), ("supply chain", "kinh_te"),
+    ("fiscal", "kinh_te"), ("monetary policy", "kinh_te"), ("deficit", "kinh_te"),
+    ("national debt", "kinh_te"), ("unemployment", "kinh_te"), ("banking", "kinh_te"),
+
+    # --- CRYPTO & TÀI SẢN SỐ (crypto) ---
+    ("tiền số", "crypto"), ("tiền mã hóa", "crypto"), ("tài sản số", "crypto"),
+    ("crypto", "crypto"), ("cryptocurrency", "crypto"), ("bitcoin", "crypto"),
+    ("btc", "crypto"), ("ethereum", "crypto"), ("eth", "crypto"), ("solana", "crypto"),
+    ("stablecoin", "crypto"), ("stablecoins", "crypto"), ("usdt", "crypto"),
+    ("blockchain", "crypto"), ("defi", "crypto"), ("web3", "crypto"),
+    ("binance", "crypto"), ("coinbase", "crypto"), ("altcoin", "crypto"),
+
+    # --- ĐỊA CHÍNH TRỊ, NĂNG LƯỢNG & QUỐC TẾ (quoc_te) ---
+    ("chiến sự", "quoc_te"), ("chiến tranh", "quoc_te"), ("xung đột", "quoc_te"),
+    ("cấm vận", "quoc_te"), ("trừng phạt", "quoc_te"), ("dầu thô", "quoc_te"),
+    ("giá dầu", "quoc_te"), ("khí đốt", "quoc_te"), ("năng lượng", "quoc_te"),
+    ("trung đông", "quoc_te"), ("biển đông", "quoc_te"), ("hạt nhân", "quoc_te"),
+    ("crude oil", "quoc_te"), ("brent", "quoc_te"), ("wti", "quoc_te"),
+    ("opec", "quoc_te"), ("natural gas", "quoc_te"), ("lng", "quoc_te"),
+    ("geopolitical", "quoc_te"), ("geopolitics", "quoc_te"), ("war", "quoc_te"),
+    ("conflict", "quoc_te"), ("sanctions", "quoc_te"), ("military", "quoc_te"),
+    ("missile", "quoc_te"), ("nuclear", "quoc_te"), ("nato", "quoc_te"),
     ("ukraine", "quoc_te"), ("russia", "quoc_te"), ("taiwan", "quoc_te"),
-    # Chính trị & Bầu cử
-    ("trump", "chinh_tri"), ("biden", "chinh_tri"), ("democrats", "chinh_tri"),
-    ("republicans", "chinh_tri"), ("gop", "chinh_tri"), ("congress", "chinh_tri"),
-    ("senate", "chinh_tri"), ("election", "chinh_tri"), ("elections", "chinh_tri"),
-    ("white house", "chinh_tri"), ("midterms", "chinh_tri"),
-    # Công nghệ AI & GitHub
-    ("ai", "github"), ("nvidia", "github"), ("llm", "github"), ("semiconductor", "github"),
+    ("israel", "quoc_te"), ("iran", "quoc_te"), ("middle east", "quoc_te"),
+    ("brics", "quoc_te"),
+
+    # --- CHÍNH TRỊ & CHÍNH SÁCH (chinh_tri) ---
+    ("chính phủ", "chinh_tri"), ("quốc hội", "chinh_tri"), ("thủ tướng", "chinh_tri"),
+    ("tổng bí thư", "chinh_tri"), ("chủ tịch nước", "chinh_tri"), ("bộ chính trị", "chinh_tri"),
+    ("nghị quyết", "chinh_tri"), ("cải cách", "chinh_tri"), ("bầu cử", "chinh_tri"),
+    ("trump", "chinh_tri"), ("biden", "chinh_tri"), ("white house", "chinh_tri"),
+    ("congress", "chinh_tri"), ("senate", "chinh_tri"), ("democrats", "chinh_tri"),
+    ("republicans", "chinh_tri"), ("gop", "chinh_tri"), ("election", "chinh_tri"),
+    ("elections", "chinh_tri"), ("midterms", "chinh_tri"), ("parliament", "chinh_tri"),
+    ("supreme court", "chinh_tri"), ("legislation", "chinh_tri"),
+
+    # --- CÔNG NGHỆ, AI & BÁN DẪN (github) ---
+    ("bán dẫn", "github"), ("trí tuệ nhân tạo", "github"), ("mã nguồn mở", "github"),
+    ("ai", "github"), ("llm", "github"), ("openai", "github"), ("anthropic", "github"),
+    ("claude", "github"), ("gemini", "github"), ("deepseek", "github"),
+    ("nvidia", "github"), ("tsmc", "github"), ("asml", "github"),
+    ("semiconductor", "github"), ("semiconductors", "github"), ("chip", "github"),
+    ("chips", "github"), ("gpu", "github"), ("data center", "github"),
+    ("open-source", "github"), ("open source", "github"), ("quantum", "github"),
+    ("robotics", "github"), ("cybersecurity", "github"),
 ]
+
+# 2. TỪ KHÓA CHẶN TIN RÁC ĐỜI SỐNG / GIẢI TRÍ / THỂ THAO (System 1 Reject Filter)
+_NOISE_REJECT_KEYWORDS: tuple = (
+    # Đời sống, Hôn nhân, Sinh sản, Tâm sự (Guardian Life & Style / VnExpress Đời sống)
+    "froze your eggs", "egg freezing", "fertility", "called off a wedding",
+    "wedding", "dating", "boyfriend", "girlfriend", "divorce", "pregnancy",
+    "horoscope", "zodiac", "recipe", "cooking", "fashion", "skincare",
+    "beauty", "workout", "weight loss", "amelia earhart", "archaeology",
+    "dinosaur", "fossil", "pet dog", "pet cat",
+    # Thể thao & Giải trí thuần túy
+    "premier league", "champions league", "la liga", "serie a", "world cup",
+    "ballon d'or", "manchester united", "arsenal", "chelsea", "liverpool",
+    "real madrid", "barcelona", "nba", "nfl", "tennis", "golf",
+    "box office", "hollywood", "grammy", "oscars", "red carpet",
+    "hoa hậu", "showbiz", "scandal tình ái", "ngoại tình", "v-league",
+)
+
+# 3. TỪ KHÓA TÍNH CẢM XÚC (SENTIMENT) CHO CON NHỆN ĐỔI MÀU
+_POSITIVE_HINTS = (
+    "tăng trưởng", "khởi sắc", "kỷ lục", "đột phá", "hồi phục", "lạc quan", "hạ nhiệt",
+    "surge", "soar", "rally", "boom", "breakthrough", "record high", "recovery", "optimism", "gain",
+)
+_NEGATIVE_HINTS = (
+    "suy thoái", "khủng hoảng", "bán tháo", "lao dốc", "thâm hụt", "chiến tranh", "trừng phạt", "vỡ nợ",
+    "crash", "plunge", "recession", "crisis", "default", "sanctions", "war", "threat", "turmoil", "drop",
+)
+
+# Biên dịch sẵn Regex ranh giới từ (\b) cho TOÀN BỘ từ khóa để không bao giờ bắt nhầm "interest" -> "interesting"
+_COMPILED_KEYWORD_HINTS = [
+    (word, cat, re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE))
+    for word, cat in _KEYWORD_CATEGORY_HINTS
+]
+
+_COMPILED_NOISE_REJECT = [
+    re.compile(rf"\b{re.escape(k)}\b", re.IGNORECASE)
+    for k in _NOISE_REJECT_KEYWORDS
+]
+
+
+def detect_article_sentiment(text: str) -> Tuple[Literal["positive", "negative", "neutral"], Literal["#F8AFA6", "#C86D51", "#E5B869"]]:
+    """Phân tích sắc thái Tích cực / Tiêu cực / Trung tính để đổi màu con nhện."""
+    low = (text or "").lower()
+    pos_score = sum(1 for w in _POSITIVE_HINTS if w in low)
+    neg_score = sum(1 for w in _NEGATIVE_HINTS if w in low)
+    if neg_score > pos_score:
+        return "negative", "#C86D51"
+    if pos_score > neg_score:
+        return "positive", "#F8AFA6"
+    return "neutral", "#E5B869"
 
 
 def extract_spider_keywords(text: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Rút từ khóa cho nhện từ tiêu đề và nội dung toàn văn.
-    Sử dụng word boundary cho các từ viết tắt ngắn (ai, fed, gop, oil, war) để chống match nhầm.
+    Áp dụng Regex Word Boundary (\b) cho 100% từ khóa để chống bắt nhầm từ ghép.
     """
     if not text:
         return []
-    lowered = text.lower()
     found: List[Dict[str, Any]] = []
     seen_words = set()
     index = 0
 
-    for word, cat in _KEYWORD_CATEGORY_HINTS:
+    for word, cat, pattern in _COMPILED_KEYWORD_HINTS:
         if word in seen_words:
             continue
-        # Với từ ngắn <= 3 ký tự Latin, dùng regex word boundary để tránh nhầm
-        if len(word) <= 3 and word.isascii():
-            m = re.search(rf"\b{re.escape(word)}\b", lowered)
-            if m:
-                pos = m.start()
-                extracted_word = text[pos:pos + len(word)]
-                found.append({"word": extracted_word or word, "category": cat, "index": index})
-                seen_words.add(word)
-                index += 1
-        else:
-            pos = lowered.find(word)
-            if pos >= 0:
-                extracted_word = text[pos:pos + len(word)]
-                found.append({"word": extracted_word or word, "category": cat, "index": index})
-                seen_words.add(word)
-                index += 1
-
-        if len(found) >= limit:
-            break
+        m = pattern.search(text)
+        if m:
+            extracted_word = text[m.start():m.end()]
+            found.append({"word": extracted_word or word, "category": cat, "index": index})
+            seen_words.add(word)
+            index += 1
+            if len(found) >= limit:
+                break
 
     return found
+
+
+def evaluate_article_system1_gate(title: str, content: str) -> Tuple[bool, Optional[str]]:
+    """
+    Chốt kiểm duyệt System 1 (D3 Lite Rule Gate):
+    - Trả về (False, None) nếu bài viết là tin rác đời sống/giải trí/thể thao và không có từ khóa vĩ mô.
+    - Trả về (True, dominant_category) nếu bài viết hợp lệ, kèm chuyên mục sát nhất với nội dung bài!
+    """
+    full_txt = f"{title or ''} {content or ''}"
+    low_txt = full_txt.lower()
+
+    # Rút trích các từ khóa vĩ mô/tài chính/công nghệ xuất hiện trong bài
+    matched_kws = extract_spider_keywords(full_txt, limit=15)
+
+    # Kiểm tra xem có dính từ khóa rác đời sống/thể thao/giải trí không (dùng regex word boundary)
+    has_noise = any(p.search(full_txt) for p in _COMPILED_NOISE_REJECT)
+
+    # Nếu dính từ khóa rác đời sống và không có ít nhất 2 từ khóa vĩ mô cứu lại -> LOẠI NGAY!
+    if has_noise and len(matched_kws) < 2:
+        return False, None
+
+    # Tính chuyên mục chiếm ưu thế nhất dựa trên nội dung bài viết (Tiêu đề được nhân đôi trọng số)
+    title_kws = extract_spider_keywords(title or "", limit=5)
+    cat_scores: Dict[str, int] = {}
+    for kw in title_kws:
+        cat_scores[kw["category"]] = cat_scores.get(kw["category"], 0) + 3
+    for kw in matched_kws:
+        cat_scores[kw["category"]] = cat_scores.get(kw["category"], 0) + 1
+
+    best_cat = max(cat_scores.items(), key=lambda x: x[1])[0] if cat_scores else None
+    return True, best_cat
 
 
 async def enrich_article_record(
@@ -327,21 +449,22 @@ async def emit_spider_events_for_articles(
     articles: List[Dict[str, Any]],
     pacing_delay_ms: int = 400,
 ) -> int:
-    """Đẩy SpiderEvent cho từng bài mới vào hàng đợi SSE để nhện tự bò."""
+    """Đẩy SpiderEvent cho từng bài mới vào hàng đợi SSE với màu sắc Sentiment thực tế."""
     emitted = 0
     for art in articles:
-        keywords = extract_spider_keywords(
-            f"{art.get('title', '')} {art.get('content_clean') or art.get('summary_raw') or ''}"
-        )
+        combined_txt = f"{art.get('title', '')} {art.get('content_clean') or art.get('summary_raw') or ''}"
+        keywords = extract_spider_keywords(combined_txt)
+        sentiment, s_color = detect_article_sentiment(combined_txt)
+        sfx = "wind_chime" if sentiment == "positive" else ("water_drop" if sentiment == "negative" else "paper_rustle")
         for kw in keywords:
             event = SpiderEvent(
                 article_id=int(art["id"]),
                 target_word=kw["word"],
                 target_index=kw["index"],
                 category=kw["category"],  # type: ignore[arg-type]
-                sentiment="neutral",
-                sentiment_color="#E5B869",
-                sfx_trigger="paper_rustle",
+                sentiment=sentiment,
+                sentiment_color=s_color,
+                sfx_trigger=sfx,
                 pacing_delay_ms=pacing_delay_ms,
             )
             await event_manager.push_event(event)
@@ -772,15 +895,16 @@ async def api_search(q: str = Query(..., min_length=1, description="Từ khóa t
 async def api_get_category_stats():
     """
     Trả về tổng số bài viết theo từng chuyên mục trên toàn bộ cơ sở dữ liệu SQLite.
+    Hỗ trợ cả chuyên mục động theo nội dung (a.category) và chuyên mục nguồn (s.category).
     """
     async with aiosqlite.connect(DEFAULT_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             """
-            SELECT coalesce(s.category, 'all') as cat, count(a.id) as total
+            SELECT coalesce(a.category, s.category, 'all') as cat, count(a.id) as total
             FROM articles a
-            JOIN sources s ON a.source_id = s.id
-            GROUP BY s.category;
+            LEFT JOIN sources s ON a.source_id = s.id
+            GROUP BY cat;
             """
         ) as cur:
             rows = await cur.fetchall()
@@ -803,11 +927,12 @@ async def api_get_articles(
     category: Optional[str] = Query(None, description="Lọc theo chuyên mục: kinh_te, chung_khoan, vang, crypto, quoc_te, chinh_tri"),
     today: bool = Query(False, description="Chỉ lấy tin trong ngày (today=1)"),
 ):
-    """Lấy danh sách bài viết. Hỗ trợ lọc theo chuyên mục và ngày."""
+    """Lấy danh sách bài viết. Hỗ trợ lọc theo chuyên mục nội dung và ngày."""
     async with aiosqlite.connect(DEFAULT_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         query = """
-            SELECT a.*, s.name as source_name, s.category as source_category
+            SELECT a.*, coalesce(a.category, s.category, 'kinh_te') as category,
+                   s.name as source_name, s.category as source_category
             FROM articles a
             LEFT JOIN sources s ON s.id = a.source_id
         """
@@ -817,7 +942,7 @@ async def api_get_articles(
         if today:
             conditions.append("date(a.crawled_at) = date('now','localtime')")
         if category and category != "all":
-            conditions.append("s.category = ?")
+            conditions.append("coalesce(a.category, s.category) = ?")
             params.append(category)
 
         if conditions:
@@ -841,7 +966,8 @@ async def api_get_single_article(article_id: int, auto_enrich: bool = True):
         db.row_factory = aiosqlite.Row
         async with db.execute(
             """
-            SELECT a.*, s.name as source_name, s.category as source_category
+            SELECT a.*, coalesce(a.category, s.category, 'kinh_te') as category,
+                   s.name as source_name, s.category as source_category
             FROM articles a
             LEFT JOIN sources s ON s.id = a.source_id
             WHERE a.id = ?;

@@ -280,144 +280,212 @@ def extract_html_paragraphs(html_text: str, min_total_len: int = 250) -> Optiona
 
 
 def extract_domain_article(html_text: str, url: str) -> Optional[str]:
-    """Trích xuất chuyên sâu theo từng tờ báo lớn để đạt độ sạch và toàn vẹn > 95%."""
+    """
+    Trích xuất chuyên sâu theo từng tờ báo lớn (VN & Quốc tế).
+    Loại bỏ triệt để các khối 'Tin liên quan', 'Đọc thêm', 'Form khảo sát', 'Chú thích ảnh' nằm xen giữa bài.
+    """
     if not html_text:
         return None
     try:
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(html_text, "html.parser")
 
+        # Xóa trước toàn bộ các thẻ rác phổ biến nằm bên trong thân bài của mọi tờ báo
+        for junk_tag in soup.select(
+            "script, style, nav, header, footer, aside, form, figure, figcaption, "
+            "iframe, button, .related-news, .box-tinlienquan, .tinlienquan, "
+            "[type='RelatedOneNews'], .story-interrupt, .ad-slot, .sub-meta"
+        ):
+            junk_tag.decompose()
+
+        body = None
+
         # 1. VnExpress
         if "vnexpress.net" in url:
             body = soup.find("article", class_="fck_detail") or soup.find("div", class_="fck_detail")
             if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 20]
-                if paras:
-                    return "\n\n".join(paras)
+                for p_junk in body.select("p.Image, p.author_mail, div.box_brief_info"):
+                    p_junk.decompose()
 
         # 2. Tuổi Trẻ
-        if "tuoitre.vn" in url:
+        elif "tuoitre.vn" in url:
             body = soup.find("div", class_="detail-content") or soup.find("div", id="main-detail-body")
-            if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 25]
-                if paras:
-                    return "\n\n".join(paras)
 
-        # 3. CafeF
-        if "cafef.vn" in url:
+        # 3. CafeF (Lấy cả Sapo mở đầu + Nội dung chính)
+        elif "cafef.vn" in url:
+            sapo = soup.find("h2", class_="sapo")
+            sapo_txt = clean_html_tags(sapo.get_text()) if sapo else ""
             body = (
                 soup.find("div", class_="detail-content")
                 or soup.find("div", class_="contentdetail")
-                or soup.find("div", class_="contentper")
                 or soup.find("div", class_="fck")
             )
             if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 20]
+                paras = [clean_html_tags(p.get_text()) for p in body.find_all("p") if len(p.get_text().strip()) > 25]
+                if sapo_txt and len(sapo_txt) > 30:
+                    paras.insert(0, sapo_txt)
                 if paras:
                     return "\n\n".join(paras)
 
-        # 4. BBC News
-        if "bbc.com" in url or "bbc.co.uk" in url:
+        # 4. BBC News (Chỉ lấy từ article text-block, bỏ qua trang video không có chữ)
+        elif "bbc.com" in url or "bbc.co.uk" in url:
+            if "/news/videos/" in url or "/news/av/" in url:
+                return None
             paras = [
-                p.get_text().strip()
-                for p in soup.find_all("p")
-                if p.get("data-component") == "text-block" or len(p.get_text().strip()) > 40
+                clean_html_tags(p.get_text())
+                for div in soup.find_all("div", attrs={"data-component": "text-block"})
+                for p in div.find_all("p")
+                if len(p.get_text().strip()) > 35
             ]
+            if not paras:
+                art = soup.find("article")
+                if art:
+                    paras = [clean_html_tags(p.get_text()) for p in art.find_all("p") if len(p.get_text().strip()) > 40]
             if len(paras) >= 3:
                 return "\n\n".join(paras)
 
-        # 5. The Guardian
-        if "theguardian.com" in url:
-            body = soup.find("div", attrs={"data-gu-mark": "true"}) or soup.find("article")
-            if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 30]
-                if paras:
-                    return "\n\n".join(paras)
+        # 5. The Guardian (Chỉ lấy vùng văn bản chính data-gu-name="body" hoặc #maincontent)
+        elif "theguardian.com" in url:
+            body = (
+                soup.find("div", attrs={"data-gu-name": "body"})
+                or soup.find("div", id="maincontent")
+                or soup.find("div", class_="article-body-commercial-selector")
+            )
 
-        # 6. CoinDesk
-        if "coindesk.com" in url:
-            body = soup.find("section", class_="article-body") or soup.find("div", class_="composer-content")
-            if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 25]
-                if paras:
-                    return "\n\n".join(paras)
+        # 6. CoinDesk (Hỗ trợ cả DOM cũ lẫn DOM Next.js mới)
+        elif "coindesk.com" in url:
+            body = (
+                soup.find("div", attrs={"data-module-name": "article-body"})
+                or soup.find("div", class_="at-body")
+                or soup.find("section", class_="article-body")
+                or soup.find("div", class_="composer-content")
+            )
 
         # 7. Politico
-        if "politico.com" in url:
+        elif "politico.com" in url:
             body = (
                 soup.find("div", class_="story-text")
-                or soup.find("article", class_="story")
-                or soup.find("div", class_="story-content")
                 or soup.find("section", class_="story-text")
+                or soup.find("article", class_="story-main-content")
             )
-            if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 30]
-                if paras:
-                    return "\n\n".join(paras)
-        # 8. AP News (Associated Press)
-        if "apnews.com" in url:
-            body = (
-                soup.find("div", class_="RichTextStoryBody")
-                or soup.find("div", class_="Article")
-                or soup.find("article")
-            )
-            if body:
-                paras = [p.get_text().strip() for p in body.find_all("p") if len(p.get_text().strip()) > 25]
-                if paras:
-                    return "\n\n".join(paras)
-    except Exception:
-        pass
+
+        # 8. AP News
+        elif "apnews.com" in url:
+            body = soup.find("div", class_="RichTextStoryBody") or soup.find("div", class_="Article")
+
+        # 9. CNBC (Mới bổ sung)
+        elif "cnbc.com" in url:
+            body = soup.find("div", class_="ArticleBody-articleBody") or soup.find("div", class_="RenderKeyPoints-list")
+
+        # 10. Yahoo Finance (Mới bổ sung - Rất quan trọng khi cào bài đối tác Bloomberg/Economist)
+        elif "yahoo.com" in url:
+            body = soup.find("div", class_="caas-body") or soup.find("div", class_="atoms-wrapper")
+
+        # 11. Reuters (Mới bổ sung)
+        elif "reuters.com" in url:
+            body = soup.find("div", attrs={"data-testid": "ArticleBody"}) or soup.find("article")
+
+        if body:
+            seen_p = set()
+            clean_paras = []
+            for p in body.find_all("p"):
+                txt = clean_html_tags(p.get_text())
+                if len(txt) < 35:
+                    continue
+                low = txt.lower()
+                # Lọc bỏ các câu rác cuối bài của AP, Guardian, Reuters
+                if any(k in low for k in (
+                    "please include as much detail", "please tell us using the form",
+                    "follow ap’s coverage", "contributed to this report",
+                    "sign up for our newsletter", "reporting by ", "editing by "
+                )):
+                    continue
+                if low not in seen_p:
+                    seen_p.add(low)
+                    clean_paras.append(txt)
+
+            if len(clean_paras) >= 2:
+                return "\n\n".join(clean_paras)
+    except Exception as e:
+        logger.debug(f"Domain parser error for {url}: {e}")
     return None
 
 
 async def resolve_real_article_url(url: str, client: Optional[httpx.AsyncClient] = None) -> str:
     """
-    Nếu URL là link bọc của Google News (news.google.com/rss/articles/...),
-    giải mã hoặc tìm link đích thực sự trước khi đưa vào Waterfall.
+    Tự động chuyển hướng URL trung gian / URL Video sang URL bài báo Text chính thức:
+    1. BBC Video (/news/videos/...) -> BBC Article (/news/articles/...)
+    2. VnExpress Video (video.vnexpress.net/...) -> Bài báo VnExpress chuẩn
+    3. Google News RSS (news.google.com/rss/articles/...) -> Báo gốc
     """
-    if "news.google.com" not in url:
+    if not url:
         return url
 
-    # 1. Thử giải mã nhanh bằng Playwright nếu có sẵn (chính xác 100% với JS Redirect của Google News)
-    try:
-        from playwright.async_api import async_playwright
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            try:
-                await page.goto(url, wait_until="commit", timeout=5000)
-                for _ in range(15):
-                    await asyncio.sleep(0.15)
-                    curr = page.url
-                    if "news.google.com" not in curr:
-                        await browser.close()
-                        return curr
-            finally:
-                await browser.close()
-    except Exception:
-        pass
+    u_low = url.lower()
+    should_close_client = False
+    if client is None:
+        client = httpx.AsyncClient(timeout=6.0, follow_redirects=True)
+        should_close_client = True
 
-    # 2. Fallback qua httpx nếu không khởi chạy được Playwright
     try:
-        should_close = False
-        if client is None:
-            client = httpx.AsyncClient(timeout=6.0, follow_redirects=True)
-            should_close = True
-        try:
-            resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA})
-            if resp.url and "news.google.com" not in str(resp.url):
-                return str(resp.url)
-            m = re.search(r'data-n-au=["\'](https?://[^"\']+)["\']', resp.text)
-            if m:
-                return m.group(1)
-            m2 = re.search(r'<a[^>]+href=["\'](https?://(?!news\.google\.com)[^"\']+)["\']', resp.text)
-            if m2:
-                return m2.group(1)
-        finally:
-            if should_close:
-                await client.aclose()
-    except Exception:
-        pass
+        # 1. BBC Video / Audio-Visual -> Tìm link bài báo chữ '/news/articles/...'
+        if "bbc.com/news/videos/" in u_low or "bbc.co.uk/news/videos/" in u_low or "bbc.com/news/av/" in u_low:
+            try:
+                resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA}, follow_redirects=True, timeout=6.0)
+                if resp.status_code == 200:
+                    m_art = re.search(
+                        r'href=["\']((?:https?://(?:www\.)?bbc\.(?:com|co\.uk))?/news/articles/[a-zA-Z0-9]+)["\']',
+                        resp.text,
+                    )
+                    if m_art:
+                        found = m_art.group(1)
+                        return f"https://www.bbc.com{found}" if found.startswith("/") else found
+            except Exception:
+                pass
+
+        # 2. VnExpress Video -> Tìm link bài báo chữ gốc nếu có đính kèm
+        if "video.vnexpress.net" in u_low:
+            try:
+                resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA}, follow_redirects=True, timeout=6.0)
+                if resp.status_code == 200:
+                    m_vne = re.search(r'href=["\'](https://vnexpress\.net/[a-zA-Z0-9\-]+-\d+\.html)["\']', resp.text)
+                    if m_vne:
+                        return m_vne.group(1)
+            except Exception:
+                pass
+
+        # 3. Google News Wrapper -> Giải mã Base64 / batchexecute
+        if "news.google.com" in u_low:
+            try:
+                import base64
+                m_b64 = re.search(r'/articles/([A-Za-z0-9_-]+)', url)
+                if m_b64:
+                    encoded = m_b64.group(1)
+                    pad = encoded + "=" * ((4 - len(encoded) % 4) % 4)
+                    decoded_str = base64.urlsafe_b64decode(pad).decode("latin1", errors="ignore")
+                    http_match = re.search(r'(https?://[^\x00-\x1f\x7f-\xff"\'\s<>]+)', decoded_str)
+                    if http_match and "google.com" not in http_match.group(1):
+                        return http_match.group(1)
+            except Exception:
+                pass
+
+            # Fallback qua HTTP nếu Base64 chưa trích xuất được
+            try:
+                resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA}, follow_redirects=True, timeout=6.0)
+                if resp.url and "news.google.com" not in str(resp.url):
+                    return str(resp.url)
+                m = re.search(r'data-n-au=["\'](https?://[^"\']+)["\']', resp.text)
+                if m:
+                    return m.group(1)
+                m2 = re.search(r'<a[^>]+href=["\'](https?://(?!news\.google\.com)[^"\']+)["\']', resp.text)
+                if m2:
+                    return m2.group(1)
+            except Exception:
+                pass
+
+    finally:
+        if should_close_client:
+            await client.aclose()
 
     return url
 
@@ -443,46 +511,87 @@ UI_JUNK_LINE_PATTERNS = (
     "guardian callout",
 )
 
-# Danh sách tiêu đề bài rác (Quảng cáo Newsletter, tuyển dụng, chùm ảnh không chữ, khảo sát) cần bỏ qua khi cào RSS
-NON_ARTICLE_TITLE_PATTERNS = (
-    "sign up for the ",
-    "newsletter:",
-    "free daily news email",
-    "free football email",
-    "food email",
-    "photos of the day",
-    "in pictures:",
-    "best photos of",
-    "quiz:",
-    "crossword",
-    "tell us:",
-    "send us your questions",
-    "share your experience",
-    "share your story",
-    "tell us about",
-    "callout:",
+# Danh sách đường dẫn URL phi văn bản của toàn bộ các báo VN & Quốc tế
+MEDIA_ONLY_URL_PATTERNS = (
+    # Quốc tế (Guardian, AP, Politico, CoinDesk, Bloomberg, CNBC, Economist)
+    "/video/", "/videos/", "/audio/", "/podcasts/", "/podcast/",
+    "/gallery/", "/in-pictures/", "/photo-gallery/", "/photography/",
+    "/ng-interactive/", "/interactive/", "/cartoons/", "/crosswords/",
+    "/coindesk-tv/", "/tv/", "/watch/", "/films/", "/hub/",
+    "youtube.com/watch", "youtu.be/",
+    # Báo Việt Nam (VnExpress, Tuổi Trẻ, CafeF)
+    "video.vnexpress.net", "tv.tuoitre.vn", "/infographics/", "/infographic/",
+    "/megastory/", "/photo/", "/anh-360/", "/tuong-thuat-",
 )
+
+# Danh sách mẫu tiêu đề không phải bài phân tích/tin tức văn bản
+NON_ARTICLE_TITLE_PATTERNS = (
+    # Newsletter & Khảo sát độc giả (The Guardian, Politico, NYT)
+    "sign up for the ", "newsletter:", "free daily news email",
+    "free football email", "food email", "tell us:", "send us your questions",
+    "corrections and clarifications", "first edition:", "morning briefing:",
+    "share your experience", "share your story", "tell us about", "callout:",
+    # Chùm ảnh / Đố vui / Video / Audio
+    "photos of the day", "in pictures:", "best photos of", "photo gallery:",
+    "quiz:", "crossword", "watch:", "listen:", "(video)", "[video]",
+    "(podcast)", "[podcast]", "video:", "podcast:",
+    # Bảng giá tự động / Ticker chứng khoán & vàng địa phương
+    "gold rate today in ", "gold and silver price today",
+    "check live 22 and 24 carat", "stock price, news, quote & history",
+)
+
+# Danh sách từ khóa chặn tin rác đời sống / hôn nhân / giải trí / thể thao thuần túy
+NOISE_REJECT_KEYWORDS = (
+    # Đời sống, Hôn nhân, Sinh sản, Tâm sự, Thám hiểm
+    "froze your eggs", "egg freezing", "fertility", "called off a wedding",
+    "wedding", "dating", "boyfriend", "girlfriend", "divorce", "pregnancy",
+    "horoscope", "zodiac", "recipe", "cooking", "fashion", "skincare",
+    "beauty", "workout", "weight loss", "amelia earhart", "archaeology",
+    "dinosaur", "fossil", "pet dog", "pet cat",
+    # Thể thao & Giải trí thuần túy
+    "premier league", "champions league", "la liga", "serie a", "world cup",
+    "ballon d'or", "manchester united", "arsenal", "chelsea", "liverpool",
+    "real madrid", "barcelona", "nba", "nfl", "tennis", "golf",
+    "box office", "hollywood", "grammy", "oscars", "red carpet",
+    "hoa hậu", "showbiz", "scandal tình ái", "ngoại tình", "v-league",
+)
+
+COMPILED_NOISE_REJECT = [
+    re.compile(rf"\b{re.escape(k)}\b", re.IGNORECASE)
+    for k in NOISE_REJECT_KEYWORDS
+]
 
 
 def is_junk_rss_entry(title: str, summary: str, url: str) -> bool:
     """
-    Chặn ngay từ vòng gửi xe các bài RSS không phải tin tức:
-    - Quảng cáo đăng ký Newsletter của The Guardian / NYT
-    - Chùm ảnh (Photo Gallery) không có nội dung văn bản
-    - Khảo sát cộng đồng (Community callouts / survey forms)
+    Bộ lọc tổng lực trước khi nạp RSS cho toàn bộ các trang báo trong dự án:
+    Chỉ cho phép bài báo dạng Text đi vào hệ thống.
+    (Ngoại lệ: BBC Video và VnExpress Video được phép đi vào resolve_real_article_url để thử bóc link bài Text).
     """
-    t_low = (title or "").lower().strip()
-    s_low = (summary or "").lower().strip()
+    t_raw = title or ""
+    s_raw = summary or ""
+    t_low = t_raw.lower().strip()
+    s_low = s_raw.lower().strip()
     u_low = (url or "").lower().strip()
 
     if any(p in t_low for p in NON_ARTICLE_TITLE_PATTERNS):
         return True
+    if any(p.search(t_raw) or p.search(s_raw) for p in COMPILED_NOISE_REJECT):
+        return True
     if "privacy notice: newsletters may contain" in s_low or "privacy notice: newsletters" in s_low:
         return True
-    if "guardian community team" in s_low or "share your response" in s_low or "tell us using the form" in s_low:
+    if "please tell us using the form below" in s_low or "please tell us using the form" in s_low:
         return True
-    if "/gallery/" in u_low or "/in-pictures/" in u_low or "/ng-interactive/" in u_low or "/community/" in u_low:
+    if "guardian community team" in s_low or "share your response" in s_low:
         return True
+
+    # Ngoại lệ cho những trang Video có nhúng kèm link bài viết Text bên trong
+    if any(vh in u_low for vh in ("bbc.com/news/videos/", "bbc.co.uk/news/videos/", "bbc.com/news/av/", "video.vnexpress.net")):
+        return False
+
+    if any(p in u_low for p in MEDIA_ONLY_URL_PATTERNS):
+        return True
+
     return False
 
 
@@ -788,6 +897,13 @@ class SpiderNewsCrawler:
                 if is_junk_rss_entry(title, summary_raw, raw_url):
                     continue
 
+                # Tự động giải mã / chuyển hướng URL trung gian sang bài báo chữ thực sự
+                if any(k in raw_url.lower() for k in ("bbc.com/news/videos", "bbc.co.uk/news/videos", "bbc.com/news/av", "video.vnexpress.net", "news.google.com")):
+                    raw_url = await resolve_real_article_url(raw_url, client=http_client)
+                    # Nếu là BBC Video hoặc VnExpress Video thuần túy không có link bài chữ đính kèm thì bỏ qua
+                    if any(vh in raw_url.lower() for vh in ("bbc.com/news/videos/", "bbc.co.uk/news/videos/", "bbc.com/news/av/", "video.vnexpress.net")):
+                        continue
+
                 url_hash = generate_url_hash(raw_url)
                 if url_hash in existing_hashes:
                     duplicate_count += 1
@@ -800,6 +916,17 @@ class SpiderNewsCrawler:
                     )
                 else:
                     content_clean = clean_html_tags(summary_raw) or title
+
+                # Chốt kiểm duyệt System 1 (D3 Lite Rule Gate) & Phân loại chuyên mục
+                try:
+                    from .app import evaluate_article_system1_gate
+                    passed, detected_cat = evaluate_article_system1_gate(title, content_clean)
+                    if not passed:
+                        logger.info(f"System 1 rejected noise article: '{title}'")
+                        continue
+                except Exception as e:
+                    logger.debug(f"System 1 evaluation fallback: {e}")
+                    detected_cat = None
 
                 lang = detect_language(f"{title} {content_clean}")
                 author = entry.get("author") or "N/A"
@@ -815,6 +942,7 @@ class SpiderNewsCrawler:
                     "language": lang,
                     "author": author,
                     "published_at": published_at,
+                    "category": detected_cat or "kinh_te",
                 })
 
         # Bước 3: Mở kết nối ghi chớp nhoáng (chỉ mất ~5ms), tuyệt đối không gây lock DB
@@ -830,8 +958,8 @@ class SpiderNewsCrawler:
                             """
                             INSERT OR IGNORE INTO articles (
                                 source_id, url, url_hash, title, summary_raw,
-                                content_clean, language, author, published_at, status
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending');
+                                content_clean, language, author, published_at, status, category
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?);
                             """,
                             (
                                 item["source_id"],
@@ -843,6 +971,7 @@ class SpiderNewsCrawler:
                                 item["language"],
                                 item["author"],
                                 item["published_at"],
+                                item.get("category", "kinh_te"),
                             ),
                         )
                         if cursor.rowcount > 0:

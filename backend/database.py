@@ -43,7 +43,8 @@ DDL_STATEMENTS = [
         published_at DATETIME,
         crawled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         status TEXT DEFAULT 'pending',
-        is_bookmarked INTEGER DEFAULT 0
+        is_bookmarked INTEGER DEFAULT 0,
+        category TEXT DEFAULT 'kinh_te'
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);",
@@ -220,6 +221,8 @@ def init_db_sync(db_path: str = DEFAULT_DB_PATH) -> None:
         art_cols = [r[1] for r in cursor.fetchall()]
         if "is_bookmarked" not in art_cols:
             cursor.execute("ALTER TABLE articles ADD COLUMN is_bookmarked INTEGER DEFAULT 0")
+        if "category" not in art_cols:
+            cursor.execute("ALTER TABLE articles ADD COLUMN category TEXT DEFAULT 'kinh_te'")
 
         cursor.execute("PRAGMA table_info(github_repos)")
         repo_cols = [r[1] for r in cursor.fetchall()]
@@ -250,6 +253,8 @@ async def init_db_async(db_path: str = DEFAULT_DB_PATH) -> None:
             art_cols = [r[1] for r in await cur.fetchall()]
         if "is_bookmarked" not in art_cols:
             await db.execute("ALTER TABLE articles ADD COLUMN is_bookmarked INTEGER DEFAULT 0")
+        if "category" not in art_cols:
+            await db.execute("ALTER TABLE articles ADD COLUMN category TEXT DEFAULT 'kinh_te'")
 
         async with db.execute("PRAGMA table_info(github_repos)") as cur:
             repo_cols = [r[1] for r in await cur.fetchall()]
