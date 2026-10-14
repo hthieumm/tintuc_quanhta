@@ -891,8 +891,9 @@ async def api_fetch_full_article(article_id: int):
     # Nếu nội dung vẫn quá ngắn (< 250 ký tự do dính Hard Paywall / DataDome như The Economist),
     # kích hoạt tầng Deep Scrape đặc trị: Playwright Headless + Reverse Search
     if not full_text or len(full_text) <= 250:
-        # 1. Thử Playwright Headless với Social Referer
+        # 1. Thử Playwright Headless với Social Referer (Đã bọc bộ lọc sanitize_article_prose)
         try:
+            from .rss_crawler import sanitize_article_prose
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -903,13 +904,16 @@ async def api_fetch_full_article(article_id: int):
                 page = await context.new_page()
                 await page.goto(row["url"], wait_until="domcontentloaded", timeout=5000)
                 p_text = await page.evaluate("""() => {
-                    const paras = Array.from(document.querySelectorAll('article p, main p, [class*="article"] p, [class*="story"] p, [class*="content"] p'))
+                    // Xóa toàn bộ header, nav, footer, aside trước khi lấy chữ
+                    document.querySelectorAll('header, nav, footer, aside, [role="navigation"], [role="banner"], figure, figcaption').forEach(el => el.remove());
+                    const paras = Array.from(document.querySelectorAll('article p, [data-gu-name="body"] p, main p'))
                         .map(p => p.innerText.trim())
-                        .filter(t => t.length > 35 && !t.toLowerCase().includes("cookie") && !t.toLowerCase().includes("subscribe"));
+                        .filter(t => t.length >= 50 && (t.includes('.') || t.includes('?') || t.includes('!')));
                     return paras.join('\\n\\n');
                 }""")
-                if p_text and len(p_text) > 250:
-                    full_text = p_text
+                clean_p_text = sanitize_article_prose(p_text, min_total_len=200)
+                if clean_p_text:
+                    full_text = clean_p_text
                     tier = "tier_playwright_deep"
                 await browser.close()
         except Exception as e:

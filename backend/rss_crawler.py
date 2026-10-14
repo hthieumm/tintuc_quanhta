@@ -414,20 +414,100 @@ async def resolve_real_article_url(url: str, client: Optional[httpx.AsyncClient]
     return url
 
 
-def is_valid_article_prose(text: str) -> bool:
+# Danh sách các cụm từ giao diện / menu rác tuyệt đối không bao giờ là nội dung báo
+UI_JUNK_LINE_PATTERNS = (
+    "previous image", "next image", "toggle caption", "skip to main content",
+    "print subscriptions", "search jobs", "sign in", "international edition",
+    "uk edition", "us edition", "australia edition", "europe edition",
+    "back to home", "the guardian", "privacy notice:", "cookie", "subscribe",
+    "newsletters may contain", "all rights reserved", "do not sell or share",
+    "terms of service", "bloomberg the company", "terminal demo", "us edition",
+    "work & life", "market data", "back forward", "share this", "follow us",
+    "most popular", "related stories", "more on this story", "photograph:",
+)
+
+# Danh sách tiêu đề bài rác (Quảng cáo Newsletter, tuyển dụng, chùm ảnh không chữ) cần bỏ qua khi cào RSS
+NON_ARTICLE_TITLE_PATTERNS = (
+    "sign up for the ",
+    "newsletter:",
+    "free daily news email",
+    "free football email",
+    "food email",
+    "photos of the day",
+    "in pictures:",
+    "best photos of",
+    "quiz:",
+    "crossword",
+)
+
+
+def is_junk_rss_entry(title: str, summary: str, url: str) -> bool:
     """
-    Kiểm tra xem văn bản cào về có phải là bài báo thực sự hay chỉ là đống Menu/Link rác.
-    Trả về False nếu văn bản chứa đầy link Markdown hoặc không có câu văn hoàn chỉnh.
+    Chặn ngay từ vòng gửi xe các bài RSS không phải tin tức:
+    - Quảng cáo đăng ký Newsletter của The Guardian / NYT
+    - Chùm ảnh (Photo Gallery) không có nội dung văn bản
     """
-    if not text or len(text.strip()) < 200:
-        return False
-    # Nếu vẫn còn sót cú pháp link markdown [text](http...) -> Chắc chắn là rác menu
-    if text.count("](http") >= 2 or "[](" in text:
-        return False
-    # Đếm số đoạn văn thực sự (dài > 60 ký tự, có dấu chấm kết thúc câu, không chứa url)
-    paras = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 60]
-    real_sentences = [p for p in paras if ("." in p or "。" in p) and p.count("http") == 0]
-    return len(real_sentences) >= 2
+    t_low = (title or "").lower().strip()
+    s_low = (summary or "").lower().strip()
+    u_low = (url or "").lower().strip()
+
+    if any(p in t_low for p in NON_ARTICLE_TITLE_PATTERNS):
+        return True
+    if "privacy notice: newsletters may contain" in s_low or "privacy notice: newsletters" in s_low:
+        return True
+    if "/gallery/" in u_low or "/in-pictures/" in u_low or "/ng-interactive/" in u_low:
+        return True
+    return False
+
+
+def sanitize_article_prose(text: str, min_total_len: int = 200) -> str:
+    """
+    Bộ lọc cấp độ từng đoạn văn (Paragraph-level Sanitizer):
+    Loại bỏ 100% các dòng menu ngắn (News, Opinion, Sport, UK edition, Previous image...)
+    Chỉ giữ lại những đoạn văn xuôi thực thụ (dài >= 55 ký tự và có cấu trúc câu).
+    """
+    if not text:
+        return ""
+
+    raw_lines = text.splitlines()
+    valid_paragraphs: List[str] = []
+
+    for line in raw_lines:
+        clean = clean_html_tags(line).strip()
+        if not clean:
+            continue
+
+        # 1. Loại bỏ dòng chứa cú pháp link markdown hoặc URL trần
+        if "](" in clean or "http://" in clean or "https://" in clean:
+            continue
+
+        c_low = clean.lower()
+
+        # 2. Loại bỏ dòng khớp với từ khóa giao diện / nút bấm
+        if any(junk in c_low for junk in UI_JUNK_LINE_PATTERNS):
+            continue
+
+        # 3. Loại bỏ các dòng cụt ngủn (menu, nhãn chuyên mục như "News", "Sport", "Int", "Sign in")
+        # Một đoạn văn báo chí thực sự phải có ít nhất 9 từ và dài >= 50 ký tự, có dấu câu
+        word_count = len(clean.split())
+        if len(clean) < 50 or word_count < 8:
+            continue
+
+        if not any(punct in clean for punct in (".", "!", "?", "。", "”", '"', "’", "…")):
+            continue
+
+        if not valid_paragraphs or clean != valid_paragraphs[-1]:
+            valid_paragraphs.append(clean)
+
+    result = "\n\n".join(valid_paragraphs).strip()
+    if len(result) >= min_total_len and len(valid_paragraphs) >= 2:
+        return result
+    return ""
+
+
+def is_valid_article_prose(text: str, min_len: int = 200) -> bool:
+    """Kiểm tra văn bản sau khi lọc sạch có đủ chuẩn bài báo không."""
+    return len(sanitize_article_prose(text, min_total_len=min_len)) >= min_len
 
 
 def clean_jina_markdown(raw_txt: str) -> str:
@@ -564,13 +644,17 @@ class SpiderNewsCrawler:
             if html_content:
                 # Tier 1: Parser chuyên biệt cho từng domain lớn
                 domain_text = extract_domain_article(html_content, url)
-                if domain_text and len(domain_text) > 250:
-                    return domain_text.strip(), "tier_1_domain_parser"
+                if domain_text:
+                    clean_d = sanitize_article_prose(domain_text, min_total_len=200)
+                    if clean_d:
+                        return clean_d, "tier_1_domain_parser"
 
                 # Tier 2: Next.js Hydration State Parser (__NEXT_DATA__)
                 next_data_text = extract_next_data_article(html_content)
-                if next_data_text and len(next_data_text) > 250:
-                    return next_data_text.strip(), "tier_2_next_data"
+                if next_data_text:
+                    clean_nd = sanitize_article_prose(next_data_text, min_total_len=200)
+                    if clean_nd:
+                        return clean_nd, "tier_2_next_data"
 
                 # Tier 3: Trafilatura
                 try:
@@ -580,20 +664,26 @@ class SpiderNewsCrawler:
                         include_tables=False,
                         no_fallback=False,
                     )
-                    if extracted and len(extracted) > 200 and "Enable JavaScript" not in extracted:
-                        return extracted.strip(), "tier_3_trafilatura"
+                    if extracted and "Enable JavaScript" not in extracted:
+                        clean_tr = sanitize_article_prose(extracted, min_total_len=200)
+                        if clean_tr:
+                            return clean_tr, "tier_3_trafilatura"
                 except Exception:
                     pass
 
                 # Tier 4: JSON-LD articleBody
                 json_body = extract_json_ld_article_body(html_content)
-                if json_body and len(json_body) > 150:
-                    return json_body, "tier_4_json_ld"
+                if json_body:
+                    clean_jb = sanitize_article_prose(json_body, min_total_len=150)
+                    if clean_jb:
+                        return clean_jb, "tier_4_json_ld"
 
                 # Tier 5: Trích xuất thẻ đoạn văn <p>
-                p_body = extract_html_paragraphs(html_content, min_total_len=250)
+                p_body = extract_html_paragraphs(html_content, min_total_len=200)
                 if p_body:
-                    return p_body, "tier_5_paragraphs"
+                    clean_p = sanitize_article_prose(p_body, min_total_len=200)
+                    if clean_p:
+                        return clean_p, "tier_5_paragraphs"
 
             # Tier 6: Jina Reader Proxy Fallback (r.jina.ai)
             try:
@@ -659,6 +749,10 @@ class SpiderNewsCrawler:
                 summary_raw = entry.get("summary") or entry.get("description") or ""
 
                 if not raw_url or not title:
+                    continue
+
+                # Bỏ qua ngay lập tức các bài quảng cáo Newsletter hoặc Gallery chỉ có ảnh
+                if is_junk_rss_entry(title, summary_raw, raw_url):
                     continue
 
                 url_hash = generate_url_hash(raw_url)
