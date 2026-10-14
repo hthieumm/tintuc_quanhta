@@ -210,7 +210,7 @@ YÊU CẦU: Trả về ĐỊNH DẠNG JSON THUẦN (không bọc mã markdown ``
   "target_audience": "Chính xác ai là người nên dùng nó ngay hôm nay để tiết kiệm thời gian?",
   "practical_use_case": "1 tình huống đời thực bạn sẽ mở nó ra dùng (Ví dụ: 'Khi cần dựng nhanh dự án Python mới mà không muốn mất 10 phút ngồi chờ cài thư viện')",
   "tech_stack": "Ngôn ngữ hoặc công nghệ cốt lõi (ví dụ: Rust, Python, Go, TypeScript...)",
-  "tech_evaluation": {
+  "tech_evaluation": {{
     "overall_score": 9.5,
     "community_score": 9.6,
     "community_desc": "Độ phổ biến & uy tín cộng đồng (stars/forks/tài trợ)",
@@ -221,7 +221,7 @@ YÊU CẦU: Trả về ĐỊNH DẠNG JSON THUẦN (không bọc mã markdown ``
     "docs_score": 9.0,
     "docs_desc": "Mức độ hoàn thiện tài liệu & độ dễ tích hợp",
     "verdict": "Lời khuyên kỹ thuật ngắn gọn: Có nên dùng cho Production hay không?"
-  }
+  }}
 }}"""
 
     raw_text = await call_llm_chat_completion(prompt, temperature=0.2, max_tokens=1000)

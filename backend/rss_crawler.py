@@ -362,79 +362,120 @@ def extract_domain_article(html_text: str, url: str) -> Optional[str]:
     return None
 
 
+async def resolve_real_article_url(url: str, client: Optional[httpx.AsyncClient] = None) -> str:
+    """
+    Nếu URL là link bọc của Google News (news.google.com/rss/articles/...),
+    giải mã hoặc tìm link đích thực sự trước khi đưa vào Waterfall.
+    """
+    if "news.google.com" not in url:
+        return url
+
+    # 1. Thử giải mã nhanh bằng Playwright nếu có sẵn (chính xác 100% với JS Redirect của Google News)
+    try:
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            try:
+                await page.goto(url, wait_until="commit", timeout=5000)
+                for _ in range(15):
+                    await asyncio.sleep(0.15)
+                    curr = page.url
+                    if "news.google.com" not in curr:
+                        await browser.close()
+                        return curr
+            finally:
+                await browser.close()
+    except Exception:
+        pass
+
+    # 2. Fallback qua httpx nếu không khởi chạy được Playwright
+    try:
+        should_close = False
+        if client is None:
+            client = httpx.AsyncClient(timeout=6.0, follow_redirects=True)
+            should_close = True
+        try:
+            resp = await client.get(url, headers={"User-Agent": DEFAULT_BROWSER_UA})
+            if resp.url and "news.google.com" not in str(resp.url):
+                return str(resp.url)
+            m = re.search(r'data-n-au=["\'](https?://[^"\']+)["\']', resp.text)
+            if m:
+                return m.group(1)
+            m2 = re.search(r'<a[^>]+href=["\'](https?://(?!news\.google\.com)[^"\']+)["\']', resp.text)
+            if m2:
+                return m2.group(1)
+        finally:
+            if should_close:
+                await client.aclose()
+    except Exception:
+        pass
+
+    return url
+
+
+def is_valid_article_prose(text: str) -> bool:
+    """
+    Kiểm tra xem văn bản cào về có phải là bài báo thực sự hay chỉ là đống Menu/Link rác.
+    Trả về False nếu văn bản chứa đầy link Markdown hoặc không có câu văn hoàn chỉnh.
+    """
+    if not text or len(text.strip()) < 200:
+        return False
+    # Nếu vẫn còn sót cú pháp link markdown [text](http...) -> Chắc chắn là rác menu
+    if text.count("](http") >= 2 or "[](" in text:
+        return False
+    # Đếm số đoạn văn thực sự (dài > 60 ký tự, có dấu chấm kết thúc câu, không chứa url)
+    paras = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 60]
+    real_sentences = [p for p in paras if ("." in p or "。" in p) and p.count("http") == 0]
+    return len(real_sentences) >= 2
+
+
 def clean_jina_markdown(raw_txt: str) -> str:
     """
     Làm sạch triệt để output từ Jina Reader Proxy.
-    Loại bỏ 100% Header Menu, thanh điều hướng (Navigation), các mục list link rác.
-    Chỉ giữ lại các đoạn văn xuôi nội dung bài báo thực tế.
+    Xóa toàn bộ link rỗng [](), chuỗi menu [A](url)[B](url) và chỉ giữ lại đoạn văn xuôi.
     """
     if not raw_txt:
         return ""
 
-    JUNK_PREFIXES = (
+    JUNK_KEYWORDS = (
         "title:", "url source:", "published time:", "markdown content:",
-        "[skip to", "toggle menu", "more from", "search for", "## series",
-        "related tags", "loading", "sign up", "by signing up", "about us",
-        "advertising", "careers", "press", "editorial standards", "terms of",
-        "privacy policy", "do not sell", "all rights reserved", "©", "copyright",
-        "share this", "follow us", "read next", "most popular", "trending now",
-        "view comments", "listen to this", "photo by", "image credit", "enable accessibility",
-        "sections [", "menu", "top stories", "newsletters", "ap quizzes", "ground game"
+        "us edition", "subscribe", "work & life", "market data", "explore",
+        "terms of service", "do not sell", "privacy policy", "trademarks",
+        "back forward", "bloomberg the company", "terminal demo", "skip to",
+        "toggle menu", "sign in", "all rights reserved", "newsletters",
+        "copy link copied", "view comments", "listen to this", "photo by"
     )
 
     lines = raw_txt.splitlines()
-
-    # Nếu văn bản dài bất thường (> 15,000 ký tự) do dính cả trang menu của báo,
-    # tìm dòng heading chính (# Title) để loại bỏ 100% header menu phía trước.
-    if len(raw_txt) > 15000:
-        first_heading_idx = -1
-        for i, line in enumerate(lines[:1200]):
-            l_str = line.strip()
-            if l_str.startswith("# ") and len(l_str) > 15 and not any(w in l_str.lower() for w in ["menu", "navigation", "sections"]):
-                first_heading_idx = i
-                break
-        if first_heading_idx > 0:
-            lines = lines[first_heading_idx:]
-
     cleaned_paras = []
 
     for line in lines:
         l = line.strip()
         if not l or l in ("*", "**0**", "Menu", "TOP STORIES", "Newsletters", "Share", "Print"):
             continue
-        l_lower = l.lower()
 
-        # Dừng lại khi chạm đến phần footer/related stories
-        if any(w in l_lower for w in ["related stories", "more from this author", "all rights reserved", "cookie preferences"]):
-            if len(cleaned_paras) >= 3:
-                break
-
-        # 1. Bỏ qua các dòng thông tin meta hoặc hình ảnh
-        if any(l_lower.startswith(prefix) for prefix in JUNK_PREFIXES):
-            continue
-        if l.startswith("![") or l.startswith("[!["):
-            continue
-        if any(k in l_lower for k in ["license this photo", "copy link copied", "add ap news on google", "read more", "of 5|", "updated [hour]"]):
+        # 1. Loại bỏ ngay lập tức bất kỳ dòng nào có từ 2 link Markdown trở lên hoặc link rỗng []()
+        if l.count("](") >= 2 or "[](" in l:
             continue
 
-        # 2. Bỏ qua các dòng chỉ chứa link mạng xã hội hoặc menu link
-        if l.startswith("*   [") and any(k in l_lower for k in ["facebook", "twitter", "bluesky", "linkedin", "pinterest", "reddit", "email", "flipboard"]):
-            continue
-        if l.count("](") >= 3 and len(l) < 300:
-            continue
-        if l.startswith("[](") and len(l) < 300:
+        # 2. Xóa sạch link rỗng [] (...) và ảnh ![...] (...)
+        clean_line = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', l)
+        clean_line = re.sub(r'\[\s*\]\([^\)]+\)', '', clean_line)
+        # Chuyển [Text](URL) thành Text (dùng [^\]]* thay vì + để không bị vỡ regex khi gặp [])
+        clean_line = re.sub(r'\[([^\]]*)\]\([^\)]+\)', r'\1', clean_line).strip()
+
+        l_lower = clean_line.lower()
+        if any(l_lower.startswith(k) or l_lower == k for k in JUNK_KEYWORDS):
             continue
 
-        # 3. Chuyển đổi [Text](URL) thành văn bản thuần Text để đọc sạch
-        clean_line = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', l)
-        clean_line = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', clean_line).strip()
-
-        if clean_line and len(clean_line) > 15 and not clean_line.startswith("http"):
+        # 3. Chỉ giữ lại những dòng thực sự là câu văn bài báo (dài > 40 ký tự và có khoảng trắng/dấu câu)
+        if len(clean_line) > 40 and not clean_line.startswith("http") and ("." in clean_line or "," in clean_line):
             if not cleaned_paras or clean_line != cleaned_paras[-1]:
                 cleaned_paras.append(clean_line)
 
     result = "\n\n".join(cleaned_paras).strip()
-    return result
+    return result if is_valid_article_prose(result) else ""
 
 
 class SpiderNewsCrawler:
@@ -476,6 +517,9 @@ class SpiderNewsCrawler:
             should_close_client = True
 
         try:
+            # Giải mã link Google News (nếu có) sang URL gốc thực sự trước khi cào
+            url = await resolve_real_article_url(url, client)
+
             html_content = None
 
             # 1. Thử cào bằng curl_cffi (Giả lập TLS/JA3 Fingerprint Chrome 124 + Social Referer t.co)
